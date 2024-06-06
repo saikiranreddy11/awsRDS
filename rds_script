@@ -1,0 +1,38 @@
+-- Create the table if it does not exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'your_table_name') THEN
+    CREATE TABLE your_table_name (
+        id SERIAL PRIMARY KEY,
+        column1 TEXT,
+        column2 TEXT,
+        column3 TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        unique_key TEXT UNIQUE -- Ensure uniqueness to prevent duplicate entries
+    );
+  END IF;
+END $$;
+
+-- Function to insert data at intervals
+DO $$
+DECLARE
+  v_unique_key TEXT;
+BEGIN
+  LOOP
+    -- Generate a unique key for each insert, e.g., using a UUID
+    v_unique_key := gen_random_uuid()::TEXT;
+    
+    -- Insert data into the table
+    BEGIN
+      INSERT INTO your_table_name (column1, column2, column3, unique_key)
+      VALUES ('value1', 'value2', 'value3', v_unique_key);
+    EXCEPTION
+      WHEN unique_violation THEN
+        -- If the unique key already exists, skip this insert
+        -- This ensures idempotency and avoids duplicate entries
+    END;
+    
+    -- Pause execution for a specified interval (e.g., 10 seconds)
+    PERFORM pg_sleep(10);
+  END LOOP;
+END $$;

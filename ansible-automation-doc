@@ -1,0 +1,57 @@
+QDORBSRVC-DBSCHEMA Directory Structure
+This document provides an overview of the directory structure and purpose of each file in the QDORBSRVC-DBSCHEMA repository.
+
+Directory and File Structure
+css
+Copy code
+QDORBSRVC-DBSCHEMA/
+│
+├── roles/
+│   ├── ddlschema/
+│   │   ├── defaults/
+│   │   │   └── main.yml
+│   │   ├── files/
+│   │   │   └── orbsrvc_tables_postgres_DDLs.ddl
+│   │   ├── tasks/
+│   │   │   └── main.yml
+│   ├── dmlschema/
+│   │   ├── defaults/
+│   │   │   └── main.yml
+│   │   ├── files/
+│   │   │   └── V2024.1.0.03__resolution_upd.sql
+│   │   ├── tasks/
+│   │   │   └── main.yml
+├── .gitlab-ci.yml
+├── assume-role.sh
+├── ddl_playbook.yml
+├── dml_playbook.yml
+├── extravars.dev.yml
+└── README.md
+Directory and File Descriptions
+roles/ddlschema
+defaults/main.yml:
+This file contains default variables for the ddlschema role. It is used to define default values that can be overridden by other variable files or during the playbook run.
+files/orbsrvc_tables_postgres_DDLs.ddl:
+This file contains Data Definition Language (DDL) scripts specific to the orbsrvc Postgres tables. It is used to create or modify database schema objects such as tables, indexes, etc.
+tasks/main.yml:
+This file defines the tasks for the ddlschema role. It includes the sequence of operations that Ansible will execute to apply the DDL scripts to the database.
+roles/dmlschema
+defaults/main.yml:
+Similar to the ddlschema role, this file contains default variables for the dmlschema role.
+files/V2024.1.0.03__resolution_upd.sql:
+This file contains a SQL script named V2024.1.0.03__resolution_upd.sql. It is likely used for data manipulation tasks, such as updating data within the database tables.
+tasks/main.yml:
+This file defines the tasks for the dmlschema role, specifying the sequence of operations to apply the DML scripts to the database.
+.gitlab-ci.yml
+This is a GitLab CI/CD configuration file. It defines the pipelines and stages for Continuous Integration and Continuous Deployment processes. It automates the testing, building, and deployment of the database schema changes.
+assume-role.sh
+This shell script is used to assume a specific role, typically within AWS. It helps in obtaining temporary security credentials to access AWS resources, enabling actions such as deploying the database changes securely.
+ddl_playbook.yml
+An Ansible playbook that utilizes the ddlschema role. It orchestrates the execution of DDL tasks to apply schema changes to the database.
+dml_playbook.yml
+An Ansible playbook that uses the dmlschema role. It manages the execution of DML tasks to perform data manipulation operations within the database.
+extravars.dev.yml
+This file contains extra variables specific to the development environment. These variables can override defaults and are used to customize the playbook execution for different environments (e.g., development, staging, production).
+README.md
+A markdown file that provides an overview of the repository, instructions for setup, usage, and other relevant information to help developers understand and use the database schema management scripts effectively.
+This structure ensures that database schema changes and data manipulation operations are well-organized and automated using Ansible and GitLab CI/CD pipelines. The use of roles and playbooks provides modularity and reusability, making it easier to manage and apply database changes across different environments.

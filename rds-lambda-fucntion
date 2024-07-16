@@ -1,86 +1,108 @@
-import json
 import boto3
-import pgdb  # Make sure PyGreSQL is available in your Lambda environment
+import psycopg2
+import os
+import json
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+secrets_manager = boto3.client('secretsmanager')
 
 def lambda_handler(event, context):
-    arn = event["SecretId"]
-    token = event["ClientRequestToken"]
-    step = event["Step"]
-    
-    client = boto3.client("secretsmanager")
-    
-    metadata = client.describe_secret(SecretId=arn)
+    secret_arn = event['SecretId']
+    step = event['Step']
 
-    if not metadata["RotationEnabled"]:
-        raise ValueError(f"Secret {arn} is not enabled for rotation")
-        
-    print(f"step: {step}")
-    
+    # Get the secret details
+    metadata = secrets_manager.describe_secret(SecretId=secret_arn)
+
+    # Perform the step
     if step == "createSecret":
-        createSecret(client, arn, token)
-    
+        create_secret(secret_arn, context)
     elif step == "setSecret":
-        setSecret(client, arn, token)
-        
+        set_secret(secret_arn)
     elif step == "testSecret":
-        testSecret(client, arn, token)
-        
+        test_secret(secret_arn)
     elif step == "finishSecret":
-        finishSecret(client, arn, token)
-        
+        finish_secret(secret_arn)
     else:
         raise ValueError("Invalid step parameter")
 
-def createSecret(client, arn, token):
-    client.get_secret_value(SecretId=arn, VersionStage="AWSCURRENT")
-    
-    try:
-        client.get_secret_value(SecretId=arn, VersionId=token, VersionStage="AWSPENDING")
-    except client.exceptions.ResourceNotFoundException:
-        password = client.get_random_password(ExcludeCharacters='/@"\'\\')
-        current_secret = json.loads(client.get_secret_value(SecretId=arn, VersionStage="AWSCURRENT")["SecretString"])
-        current_secret["password"] = password["RandomPassword"]
-        client.put_secret_value(SecretId=arn, ClientRequestToken=token, SecretString=json.dumps(current_secret), VersionStages=["AWSPENDING"])
+def create_secret(secret_arn, context):
+    # Generate a new password
+    new_password = secrets_manager.get_random_password(PasswordLength=16, ExcludeCharacters='"/@')
 
-def setSecret(client, arn, token):
-    pending_secret = json.loads(client.get_secret_value(SecretId=arn, VersionStage="AWSPENDING", VersionId=token)["SecretString"])
-    host = pending_secret["host"]
-    username = pending_secret["username"]
-    password = pending_secret["password"]
-    dbname = pending_secret.get("dbname", "postgres")
-    port = int(pending_secret.get("port", 5432))
-    
+    # Get the current secret
+    current_secret = json.loads(secrets_manager.get_secret_value(SecretId=secret_arn)['SecretString'])
+
+    # Create a new secret JSON
+    new_secret = {
+        'username': current_secret['username'],
+        'password': new_password['RandomPassword'],
+        'engine': current_secret['engine'],
+        'host': current_secret['host'],
+        'dbname': current_secret['dbname'],
+        'port': current_secret['port']
+    }
+
+    # Store the new secret
+    secrets_manager.put_secret_value(
+        SecretId=secret_arn,
+        ClientRequestToken=context.aws_request_id,
+        SecretString=json.dumps(new_secret),
+        VersionStages=['AWSPENDING']
+    )
+
+def set_secret(secret_arn):
+    # Get the pending secret version
+    pending_secret = json.loads(secrets_manager.get_secret_value(SecretId=secret_arn, VersionStage="AWSPENDING")['SecretString'])
+
     # Update the database with the new password
-    conn = pgdb.connect(host=host, user=username, password=pending_secret["old_password"], database=dbname, port=port)
-    try:
-        with conn.cursor() as cur:
-            cur.execute(f"ALTER USER {username} WITH PASSWORD '{password}';")
-            conn.commit()
-    finally:
-        conn.close()
-    
-def testSecret(client, arn, token):
-    pending_secret = json.loads(client.get_secret_value(SecretId=arn, VersionStage="AWSPENDING", VersionId=token)["SecretString"])
-    host = pending_secret["host"]
-    username = pending_secret["username"]
-    password = pending_secret["password"]
-    dbname = pending_secret.get("dbname", "postgres")
-    port = int(pending_secret.get("port", 5432))
-    
-    # Try to connect to the database with the new credentials
-    try:
-        conn = pgdb.connect(host=host, user=username, password=password, database=dbname, port=port)
-        conn.close()
-    except pgdb.Error as e:
-        raise ValueError("Unable to log into database with pending secret of secret ARN %s" % arn) from e
+    update_password(pending_secret)
 
-def finishSecret(client, arn, token):
-    metadata = client.describe_secret(SecretId=arn)
+def test_secret(secret_arn):
+    # Get the pending secret version
+    pending_secret = json.loads(secrets_manager.get_secret_value(SecretId=secret_arn, VersionStage="AWSPENDING")['SecretString'])
+
+    # Test the new password
+    test_connection(pending_secret)
+
+def finish_secret(secret_arn):
+    # Mark the new secret as the current secret
+    secrets_manager.update_secret_version_stage(
+        SecretId=secret_arn,
+        VersionStage='AWSCURRENT',
+        MoveToVersionId=context.aws_request_id,
+        RemoveFromVersionId='AWSPENDING'
+    )
+
+def update_password(secret):
+    connection = psycopg2.connect(
+        host=secret['host'],
+        user=secret['username'],
+        password=secret['password'],
+        dbname=secret['dbname'],
+        port=secret['port']
+    )
     
-    for version in metadata["VersionIdsToStages"]:
-        if "AWSCURRENT" in metadata["VersionIdsToStages"][version]:
-            if version == token:
-                return
-            
-            client.update_secret_version_stage(SecretId=arn, VersionStage="AWSCURRENT", MoveToVersionId=token, RemoveFromVersionId=version)
-            break
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(f"ALTER USER {secret['username']} WITH PASSWORD '{secret['password']}';")
+        connection.commit()
+    finally:
+        connection.close()
+
+def test_connection(secret):
+    connection = psycopg2.connect(
+        host=secret['host'],
+        user=secret['username'],
+        password=secret['password'],
+        dbname=secret['dbname'],
+        port=secret['port']
+    )
+    
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1;")
+    finally:
+        connection.close()

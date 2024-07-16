@@ -1,0 +1,33 @@
+import json
+import pgdb  # Make sure PyGreSQL is available in your Lambda environment
+import boto3
+
+def lambda_handler(event, context):
+    host = "<your-rds-endpoint>"
+    port = 5432
+    dbname = "<your-database-name>"
+    username = "<your-database-username>"
+    password = "<your-database-password>"
+    
+    try:
+        # Connect to the database
+        conn = pgdb.connect(host=host, port=port, user=username, password=password, database=dbname)
+        cursor = conn.cursor()
+        
+        # Execute a simple query
+        cursor.execute("SELECT 1;")
+        result = cursor.fetchone()
+        
+        # Close the connection
+        cursor.close()
+        conn.close()
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps(f"Connection successful: {result}")
+        }
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps(f"Connection failed: {str(e)}")
+        }

@@ -1,0 +1,17 @@
+- name: Apply new DDL migrations
+  block:
+    - name: Apply each new DDL migration
+      command: psql -h {{ db_endpoint }} -U {{ db_username }} -d {{ db_name }} -f {{ item }}
+      environment:
+        PGPASSWORD: "{{ secret_password.stdout }}"
+      loop: "{{ new_ddl_migrations }}"
+
+    - name: Update applied migrations in group vars
+      lineinfile:
+        path: "../group-vars/{{ env }}/vars.yml"
+        line: "  - {{ item }}"
+        create: yes
+      loop: "{{ new_ddl_migrations }}"
+      notify:
+        - Update group vars
+  when: new_ddl_migrations | length > 0

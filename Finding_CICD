@@ -1,0 +1,17 @@
+# Subgroup ID
+subgroup_id=<subgroup_id>  # Replace with your actual subgroup ID
+
+# Fetch all projects in the subgroup
+projects=$(curl --silent --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.com/api/v4/groups/$subgroup_id/projects?per_page=100")
+
+# Loop through each project and check if .gitlab-ci.yml exists
+echo "$projects" | jq -r '.[] | "\(.id) \(.name)"' | while read project_id project_name; do
+  echo "Checking project: $project_name (ID: $project_id)"
+  response=$(curl --silent --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.com/api/v4/projects/$project_id/repository/files/.gitlab-ci.yml?ref=master")
+
+  if [[ "$response" == *"404"* ]]; then
+    echo "Project: $project_name (ID: $project_id) does NOT have a CI/CD pipeline"
+  else
+    echo "Project: $project_name (ID: $project_id) has a CI/CD pipeline"
+  fi
+done

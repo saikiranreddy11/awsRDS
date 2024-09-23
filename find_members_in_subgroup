@@ -113,7 +113,7 @@ if __name__ == "__main__":
 
 #!/bin/bash
 
-# Replace with your actual subgroup ID and access token
+# Subgroup ID and Access Token
 parent_group_id=<your_parent_subgroup_id>  # Replace with your parent group ID
 private_token=<your_access_token>  # Replace with your actual access token
 
@@ -135,20 +135,22 @@ get_members() {
   while true; do
     response=$(curl --silent --header "PRIVATE-TOKEN: $private_token" "https://gitlab.com/api/v4/$entity_type/$entity_id/members?per_page=$per_page&page=$page")
     
-    # Break if the response is empty
+    # Break if the response is empty or not a JSON object
     if [[ $(echo "$response" | jq '. | length') -eq 0 ]]; then
       break
     fi
 
     # Process each member in the response
-    echo "$response" | jq -r '.[] | "\(.name), \(.username), '$entity_path', \(.access_level)"' >> $output_file
+    echo "$response" | jq -r '.[] | "\(.name), \(.username), '"$entity_path"', \(.access_level)"' >> $output_file
     
     # Store the access path and access level in a map (for unique members later)
     while IFS=, read -r name username path access_level; do
-      key="$username"
-      value="$path $access_level"
-      member_access_map[$key]+="$value\n"
-    done <<< "$(echo "$response" | jq -r '.[] | "\(.name), \(.username), '$entity_path', \(.access_level)"')"
+      if [[ -n "$username" ]]; then
+        key="$username"
+        value="$path $access_level"
+        member_access_map["$key"]+="$value\n"
+      fi
+    done <<< "$(echo "$response" | jq -r '.[] | "\(.name), \(.username), '"$entity_path"', \(.access_level)"')"
 
     ((page++))
   done
@@ -161,7 +163,7 @@ get_subgroups_and_projects() {
 
   # Get all subgroups of this group
   subgroups=$(curl --silent --header "PRIVATE-TOKEN: $private_token" "https://gitlab.com/api/v4/groups/$group_id/subgroups?per_page=100")
-  echo "$subgroups" | jq -r '.[] | "\(.id) \(.full_path)"' | while read subgroup_id subgroup_path; do
+  echo "$subgroups" | jq -r '.[] | "\(.id) \(.full_path)"' | while read -r subgroup_id subgroup_path; do
     echo "Processing subgroup: $subgroup_path"
     get_members "groups" "$subgroup_id" "$subgroup_path"
     get_subgroups_and_projects "$subgroup_id" "$subgroup_path"  # Recursively get all subgroups
@@ -169,7 +171,7 @@ get_subgroups_and_projects() {
 
   # Get all projects of this group
   projects=$(curl --silent --header "PRIVATE-TOKEN: $private_token" "https://gitlab.com/api/v4/groups/$group_id/projects?per_page=100")
-  echo "$projects" | jq -r '.[] | "\(.id) \(.path_with_namespace)"' | while read project_id project_path; do
+  echo "$projects" | jq -r '.[] | "\(.id) \(.path_with_namespace)"' | while read -r project_id project_path; do
     echo "Processing project: $project_path"
     get_members "projects" "$project_id" "$project_path"
   done

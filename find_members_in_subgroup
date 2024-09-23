@@ -131,8 +131,14 @@ def get_subgroups_and_projects(subgroup_id):
     # Get subgroups recursively
     while True:
         response = requests.get(f'{GITLAB_URL}/groups/{subgroup_id}/subgroups', headers=headers, params={'per_page': per_page, 'page': page})
-        subgroups = response.json()
         
+        try:
+            subgroups = response.json()
+        except ValueError:
+            print(f"Error parsing JSON for subgroups in subgroup ID: {subgroup_id}")
+            print(response.text)
+            break
+
         if not subgroups:
             break
         
@@ -146,8 +152,14 @@ def get_subgroups_and_projects(subgroup_id):
     page = 1
     while True:
         response = requests.get(f'{GITLAB_URL}/groups/{subgroup_id}/projects', headers=headers, params={'per_page': per_page, 'page': page})
-        projects = response.json()
         
+        try:
+            projects = response.json()
+        except ValueError:
+            print(f"Error parsing JSON for projects in subgroup ID: {subgroup_id}")
+            print(response.text)
+            break
+
         if not projects:
             break
         
@@ -168,19 +180,28 @@ def get_members(resource_id, resource_type):
     
     while True:
         response = requests.get(endpoint, headers=headers, params={'per_page': per_page, 'page': page})
-        resource_members = response.json()
         
-        if not resource_members:
+        try:
+            resource_members = response.json()
+        except ValueError:
+            print(f"Error parsing JSON for members in {resource_type} ID: {resource_id}")
+            print(response.text)
             break
         
+        if not isinstance(resource_members, list):
+            print(f"Unexpected response format for {resource_type} ID: {resource_id}")
+            break
+
         for member in resource_members:
             members.append({
-                'name': member['name'],
-                'username': member['username'],
-                'access_level': member['access_level'],
+                'name': member.get('name', 'Unknown'),
+                'username': member.get('username', 'Unknown'),
+                'access_level': member.get('access_level', 'Unknown'),
             })
         
         page += 1
+        if len(resource_members) < per_page:
+            break  # Stop if fewer than 'per_page' results are returned
 
     return members
 
@@ -209,26 +230,7 @@ def main():
     
     print("Fetching members for each subgroup and project...")
     for resource in resources:
-        resource_members = get_members(resource['id'], resource['type'])
-        
-        for member in resource_members:
-            member_key = (member['name'], member['username'])
-            if member_key not in unique_members:
-                unique_members[member_key] = []
-            
-            unique_members[member_key].append({
-                'path': resource['path'],
-                'access_level': member['access_level']
-            })
-    
-    print(f"Found {len(unique_members)} unique members.")
-    
-    print("Writing data to CSV...")
-    write_to_csv(unique_members)
-    print("Done! Output written to 'member_access.csv'")
-
-if __name__ == '__main__':
-    main()
+        resource_members = get_members(r
 
 
 

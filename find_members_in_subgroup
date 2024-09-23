@@ -109,12 +109,6 @@ if __name__ == "__main__":
 
 
 
-
-
-
-
-
-
 import requests
 import csv
 
@@ -128,8 +122,8 @@ headers = {
     "PRIVATE-TOKEN": PRIVATE_TOKEN
 }
 
-def get_group_members(group_id, members=[], group_name=""):
-    """Fetch all members of a group including subgroups, and return a list of members with their access levels."""
+def get_group_members(group_id, group_name, members=[]):
+    """Fetch all members of a group including subgroups and add them with group/project name."""
     page = 1
     per_page = 100
     while True:
@@ -143,9 +137,10 @@ def get_group_members(group_id, members=[], group_name=""):
         if not data:
             break
 
+        # Add each member along with the group/project name
         for member in data:
             members.append({
-                "group_or_project": group_name,
+                "group_or_project_name": group_name,
                 "name": member.get("name"),
                 "username": member.get("username"),
                 "access_level": member.get("access_level")
@@ -176,7 +171,7 @@ def get_subgroup_projects(group_id):
 def export_to_csv(members, filename="gitlab_members.csv"):
     """Export the list of members to a CSV file."""
     with open(filename, mode="w", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=["group_or_project", "name", "username", "access_level"])
+        writer = csv.DictWriter(file, fieldnames=["group_or_project_name", "name", "username", "access_level"])
         writer.writeheader()
         for member in members:
             writer.writerow(member)
@@ -185,36 +180,40 @@ def main():
     all_members = []
 
     # Get members for the main group
-    print(f"\nFetching members for group: Main Group (ID: {GROUP_ID})")
-    all_members = get_group_members(GROUP_ID, group_name="Main Group")
+    print(f"Fetching members for group ID: {GROUP_ID}")
+    group_name = f"Group: {GROUP_ID}"
+    all_members = get_group_members(GROUP_ID, group_name)
 
     # Get subgroups and projects recursively
     subgroups, projects = get_subgroup_projects(GROUP_ID)
 
     # Fetch members for subgroups
     for subgroup in subgroups:
-        print(f"\nFetching members for subgroup: {subgroup['name']} (ID: {subgroup['id']})")
-        all_members += get_group_members(subgroup["id"], group_name=subgroup['name'])
+        subgroup_name = f"Subgroup: {subgroup['name']}"
+        print(f"Fetching members for subgroup: {subgroup['name']} (ID: {subgroup['id']})")
+        all_members += get_group_members(subgroup["id"], subgroup_name)
 
     # Fetch members for each project
     for project in projects:
-        print(f"\nFetching members for project: {project['name']} (ID: {project['id']})")
+        project_name = f"Project: {project['name']}"
+        print(f"Fetching members for project: {project['name']} (ID: {project['id']})")
         url = f"{GITLAB_API_URL}/projects/{project['id']}/members"
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             project_members = response.json()
             for member in project_members:
                 all_members.append({
-                    "group_or_project": project['name'],
+                    "group_or_project_name": project_name,
                     "name": member.get("name"),
                     "username": member.get("username"),
                     "access_level": member.get("access_level")
                 })
 
     # Export all members to CSV
-    print("\nExporting members to CSV...")
+    print("Exporting members to CSV...")
     export_to_csv(all_members)
 
 if __name__ == "__main__":
     main()
+
 

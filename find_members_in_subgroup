@@ -189,7 +189,6 @@ if __name__ == '__main__':
 
 
 
-
 import requests
 import csv
 
@@ -201,85 +200,71 @@ GITLAB_URL = 'https://gitlab.com/api/v4'
 # Headers for API requests
 headers = {'PRIVATE-TOKEN': PRIVATE_TOKEN}
 
-# Function to get all subgroups and projects under a parent subgroup recursively
-def get_subgroups_and_projects(subgroup_id):
-    all_resources = []
+# Helper function to handle paginated requests
+def get_all_pages(url, resource_type):
+    all_data = []
     page = 1
     per_page = 100
+
+    while True:
+        response = requests.get(f"{url}?per_page={per_page}&page={page}", headers=headers)
+        if response.status_code != 200:
+            print(f"Error fetching {resource_type} data, Status Code: {response.status_code}")
+            return all_data
+
+        data = response.json()
+        if not data:
+            break
+        all_data.extend(data)
+        page += 1
+
+    return all_data
+
+# Function to recursively fetch subgroups and projects under a parent subgroup
+def get_subgroups_and_projects(subgroup_id):
+    all_resources = []
+
+    # Get subgroups within the subgroup
+    subgroup_url = f"{GITLAB_URL}/groups/{subgroup_id}/subgroups"
+    subgroups = get_all_pages(subgroup_url, 'subgroup')
     
-    # Get subgroups recursively
-    while True:
-        response = requests.get(f'{GITLAB_URL}/groups/{subgroup_id}/subgroups', headers=headers, params={'per_page': per_page, 'page': page})
-        
-        if response.status_code == 200:
-            subgroups = response.json()
-        else:
-            print(f"Error fetching subgroups for subgroup ID: {subgroup_id}, Status Code: {response.status_code}")
-            return all_resources  # Return what we have so far
+    for subgroup in subgroups:
+        all_resources.append({
+            'id': subgroup['id'],
+            'name': subgroup['name'],
+            'path': subgroup['full_path'],
+            'type': 'subgroup'
+        })
+        # Recursively fetch sub-subgroups and projects within this subgroup
+        all_resources += get_subgroups_and_projects(subgroup['id'])
 
-        if not subgroups:
-            break
-        
-        for subgroup in subgroups:
-            all_resources.append({'id': subgroup['id'], 'name': subgroup['name'], 'path': subgroup['full_path'], 'type': 'subgroup'})
-            # Recursively fetch subgroups and projects within this subgroup
-            all_resources += get_subgroups_and_projects(subgroup['id'])  # Recursive call to get nested subgroups
-        
-        page += 1
+    # Get projects within the subgroup
+    projects_url = f"{GITLAB_URL}/groups/{subgroup_id}/projects"
+    projects = get_all_pages(projects_url, 'project')
 
-    # Get projects in this subgroup
-    page = 1
-    while True:
-        response = requests.get(f'{GITLAB_URL}/groups/{subgroup_id}/projects', headers=headers, params={'per_page': per_page, 'page': page})
-        
-        if response.status_code == 200:
-            projects = response.json()
-        else:
-            print(f"Error fetching projects for subgroup ID: {subgroup_id}, Status Code: {response.status_code}")
-            return all_resources  # Return what we have so far
-
-        if not projects:
-            break
-        
-        for project in projects:
-            all_resources.append({'id': project['id'], 'name': project['name'], 'path': project['path_with_namespace'], 'type': 'project'})
-        
-        page += 1
+    for project in projects:
+        all_resources.append({
+            'id': project['id'],
+            'name': project['name'],
+            'path': project['path_with_namespace'],
+            'type': 'project'
+        })
 
     return all_resources
 
-# Function to get members of a subgroup or project
+# Function to get members of a subgroup or project, including inherited members
 def get_members(resource_id, resource_type):
-    page = 1
-    per_page = 100
     members = []
+    member_url = f"{GITLAB_URL}/{resource_type}s/{resource_id}/members/all"
+    all_members = get_all_pages(member_url, f'{resource_type} members')
 
-    endpoint = f'{GITLAB_URL}/{resource_type}s/{resource_id}/members/all'
+    for member in all_members:
+        members.append({
+            'name': member.get('name', 'Unknown'),
+            'username': member.get('username', 'Unknown'),
+            'access_level': member.get('access_level', 'Unknown'),
+        })
     
-    while True:
-        response = requests.get(endpoint, headers=headers, params={'per_page': per_page, 'page': page})
-        
-        if response.status_code == 200:
-            resource_members = response.json()
-        else:
-            print(f"Error fetching members for {resource_type} ID: {resource_id}, Status Code: {response.status_code}")
-            return []  # Return an empty list in case of error
-
-        if not isinstance(resource_members, list):
-            print(f"Unexpected response format for {resource_type} ID: {resource_id}")
-            return []  # Return an empty list if response format is unexpected
-
-        for member in resource_members:
-            members.append({
-                'name': member.get('name', 'Unknown'),
-                'username': member.get('username', 'Unknown'),
-                'access_level': member.get('access_level', 'Unknown'),
-            })
-        
-        page += 1
-        if len(resource_members) < per_page:
-            break  # Stop if fewer than 'per_page' results are returned
-
     return members
 
 # Function to create a CSV file for the output
@@ -288,8 +273,7 @@ def write_to_csv(member_access, filename='member_access.csv'):
         fieldnames = ['Member Name', 'Member Username', 'Resource Path', 'Access Level']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
-        
-        # Loop through the unique_members dictionary where the key is a tuple (name, username)
+
         for (member_name, member_username), resources in member_access.items():
             for resource in resources:
                 writer.writerow({
@@ -303,7 +287,6 @@ def write_to_csv(member_access, filename='member_access.csv'):
 def write_unique_members_to_csv(member_access, filename='unique_members.csv'):
     unique_users = set()
 
-    # Extract the unique names and usernames
     for (member_name, member_username), _ in member_access.items():
         unique_users.add((member_name, member_username))
 
@@ -322,9 +305,9 @@ def write_unique_members_to_csv(member_access, filename='unique_members.csv'):
 def main():
     print("Fetching all subgroups and projects...")
     resources = get_subgroups_and_projects(PARENT_SUBGROUP_ID)
-    
+
     unique_members = {}
-    
+
     if not resources:
         print("No resources fetched. Please check the response or permissions.")
         return
@@ -334,23 +317,23 @@ def main():
     print("Fetching members for each subgroup and project...")
     for resource in resources:
         resource_members = get_members(resource['id'], resource['type'])
-        
+
         if not resource_members:
             print(f"No members found for {resource['type']} {resource['name']}")
             continue
-        
+
         for member in resource_members:
             member_key = (member['name'], member['username'])
             if member_key not in unique_members:
                 unique_members[member_key] = []
-            
+
             unique_members[member_key].append({
                 'path': resource['path'],
                 'access_level': member['access_level']
             })
-    
+
     print(f"Found {len(unique_members)} unique members.")
-    
+
     # Write the main member access data
     print("Writing data to 'member_access.csv'...")
     write_to_csv(unique_members, filename='member_access.csv')
@@ -363,4 +346,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

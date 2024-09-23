@@ -1,0 +1,52 @@
+CURRENT_DIR=$(dirname "$0")
+GITLAB_SITE="<gitlab site>"
+GITLAB_GROUP="<group>"
+GITLAB_ACCESS_TOKEN="<access token>"
+
+#### get projects url #####
+url_file=$(mktemp)
+temp_file=$(mktemp)
+for ((page=1; ; page+=1)); do
+  # iterate all pages
+  url="${GITLAB_SITE}/api/v4/projects?per_page=100&page=${page}"
+  data=$(curl  --request GET --header "PRIVATE-TOKEN: ${GITLAB_ACCESS_TOKEN}" $url )
+  [ $(jq length <<< "$data") -eq 0 ] && break
+
+  echo "$data" \
+  | jq -r --arg GITLAB_GROUP "$GITLAB_GROUP" '.[] | select(.path_with_namespace | startswith("smartcompany")) | [.id] | @csv' \
+  | while read -r id; do echo "${GITLAB_SITE}/api/v4/projects/${id}/members/all" >> ${url_file} ; done
+done
+
+#### get groups url #####
+temp_file=$(mktemp)
+for ((page=1; ; page+=1)); do
+  # iterate all pages
+  url="${GITLAB_SITE}/api/v4/groups?per_page=100&page=${page}"
+  data=$(curl  --request GET --header "PRIVATE-TOKEN: ${GITLAB_ACCESS_TOKEN}" $url )
+  [ $(jq length <<< "$data") -eq 0 ] && break
+
+  echo "$data" \
+  | jq -r --arg GITLAB_GROUP "$GITLAB_GROUP" '.[] | select(.full_path | test("^" + $GITLAB_GROUP + "(/|$)")) | [.id] | @csv' \
+  | while read -r id; do echo "${GITLAB_SITE}/api/v4/groups/${id}/members/all" >> ${url_file} ; done
+done
+
+
+#### get menbers ####
+tmp_members="$(mktemp)"
+while IFS= read -r url
+do
+  for ((page=1; ; page+=1)); do
+    url="${url}?per_page=100&page=${page}"
+    data=$(curl  --request GET --header "PRIVATE-TOKEN: ${GITLAB_ACCESS_TOKEN}" $url )
+  [ $(jq length <<< "$data") -eq 0 ] && break
+
+    # data
+    echo "$data" | jq -r '.[] | [.id,.name] | @csv' >> $tmp_members
+  done
+
+done < "${url_file}"
+
+#### remove duplication ####
+members_csv="${CURRENT_DIR}/users-$(date '+%Y-%m-%d').csv"
+echo "id,name" > "${members_csv}"
+sort -n ${tmp_members} | uniq >> "${members_csv}"

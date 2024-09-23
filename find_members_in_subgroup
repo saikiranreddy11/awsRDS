@@ -288,23 +288,22 @@ def get_subgroups_and_projects(subgroup_id):
     while True:
         response = requests.get(f'{GITLAB_URL}/groups/{subgroup_id}/subgroups', headers=headers, params={'per_page': per_page, 'page': page})
         
-        try:
+        if response.status_code == 200:
             subgroups = response.json()
-        except ValueError:
-            print(f"Error parsing JSON for subgroups in subgroup ID: {subgroup_id}")
-            print(response.text)
-            print(response.headers)
-            break
+        else:
+            print(f"Error fetching subgroups for subgroup ID: {subgroup_id}, Status Code: {response.status_code}")
+            print(response.json())  # Print the raw error response for debugging
+            return []  # Stop processing if there's an issue
 
         if not subgroups:
-            print(f"Unexpected response format for subgroup ID: {subgroup_id}")
-            print(response.text)
-            print(response.headers)
             break
         
         for subgroup in subgroups:
             all_resources.append({'id': subgroup['id'], 'name': subgroup['name'], 'path': subgroup['full_path'], 'type': 'subgroup'})
-            all_resources += get_subgroups_and_projects(subgroup['id'])  # Recursive call to get sub-subgroups and projects
+            # Recursive call to get sub-subgroups and projects
+            sub_resources = get_subgroups_and_projects(subgroup['id'])
+            if sub_resources:
+                all_resources += sub_resources
             
         page += 1
 
@@ -313,13 +312,12 @@ def get_subgroups_and_projects(subgroup_id):
     while True:
         response = requests.get(f'{GITLAB_URL}/groups/{subgroup_id}/projects', headers=headers, params={'per_page': per_page, 'page': page})
         
-        try:
+        if response.status_code == 200:
             projects = response.json()
-        except ValueError:
-            print(f"Error parsing JSON for projects in subgroup ID: {subgroup_id}")
-            print(response.text)
-            print(response.headers)
-            break
+        else:
+            print(f"Error fetching projects for subgroup ID: {subgroup_id}, Status Code: {response.status_code}")
+            print(response.json())  # Print the raw error response for debugging
+            return []  # Stop processing if there's an issue
 
         if not projects:
             break
@@ -342,19 +340,17 @@ def get_members(resource_id, resource_type):
     while True:
         response = requests.get(endpoint, headers=headers, params={'per_page': per_page, 'page': page})
         
-        try:
+        if response.status_code == 200:
             resource_members = response.json()
-        except ValueError:
-            print(f"Error parsing JSON for members in {resource_type} ID: {resource_id}")
-            print(response.text)
-            print(response.headers)
-            break
-        
+        else:
+            print(f"Error fetching members for {resource_type} ID: {resource_id}, Status Code: {response.status_code}")
+            print(response.json())  # Print the raw error response for debugging
+            return []  # Stop processing if there's an issue
+
         if not isinstance(resource_members, list):
             print(f"Unexpected response format for {resource_type} ID: {resource_id}")
-            print(response.text)
-            print(response.headers)
-            break
+            print(response.json())  # Print raw response
+            return []  # Stop processing if there's an issue
 
         for member in resource_members:
             members.append({
@@ -412,9 +408,17 @@ def main():
     
     unique_members = {}
     
+    if not resources:
+        print("No resources fetched. Please check the response or permissions.")
+        return
+
     print("Fetching members for each subgroup and project...")
     for resource in resources:
         resource_members = get_members(resource['id'], resource['type'])
+        
+        if not resource_members:
+            print(f"No members found for {resource['type']} {resource['name']}")
+            continue
         
         for member in resource_members:
             member_key = (member['name'], member['username'])
@@ -437,12 +441,6 @@ def main():
     write_unique_members_to_csv(unique_members)
 
     print("Done! Outputs written to 'member_access.csv' and 'unique_members.csv'")
-
-if __name__ == '__main__':
-    main()
-
-
-    print("Done! Output written to 'member_access.csv'")
 
 if __name__ == '__main__':
     main()

@@ -230,8 +230,23 @@ def main():
     
     print("Fetching members for each subgroup and project...")
     for resource in resources:
-        resource_members = get_members(r
+        resource_members = get_members(resource['id'], resource['type'])
+        
+        for member in resource_members:
+            member_key = (member['name'], member['username'])
+            if member_key not in unique_members:
+                unique_members[member_key] = []
+            
+            unique_members[member_key].append({
+                'path': resource['path'],
+                'access_level': member['access_level']
+            })
+    
+    print(f"Found {len(unique_members)} unique members.")
+    
+    print("Writing data to CSV...")
+    write_to_csv(unique_members)
+    print("Done! Output written to 'member_access.csv'")
 
-
-
-
+if __name__ == '__main__':
+    main()

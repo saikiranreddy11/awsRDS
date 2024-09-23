@@ -110,7 +110,6 @@ if __name__ == "__main__":
 
 
 
-
 import requests
 import csv
 
@@ -212,11 +211,12 @@ def write_to_csv(member_access):
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         
-        for member, resources in member_access.items():
+        # Loop through the unique_members dictionary where the key is a tuple (name, username)
+        for (member_name, member_username), resources in member_access.items():
             for resource in resources:
                 writer.writerow({
-                    'Member Name': member['name'],
-                    'Member Username': member['username'],
+                    'Member Name': member_name,
+                    'Member Username': member_username,
                     'Resource Path': resource['path'],
                     'Access Level': resource['access_level']
                 })
@@ -246,6 +246,11 @@ def main():
     
     print("Writing data to CSV...")
     write_to_csv(unique_members)
+    print("Done! Output written to 'member_access.csv'")
+
+if __name__ == '__main__':
+    main()
+
     print("Done! Output written to 'member_access.csv'")
 
 if __name__ == '__main__':

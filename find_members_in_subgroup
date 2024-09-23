@@ -111,119 +111,112 @@ if __name__ == "__main__":
 
 
 
-
-
-
-
-
-
-
 import requests
 import csv
 
-# GitLab API settings
-GITLAB_API_URL = "https://gitlab.com/api/v4"
-PRIVATE_TOKEN = "YOUR_ACCESS_TOKEN"  # Replace with your GitLab private token
-GROUP_ID = "YOUR_GROUP_ID"  # Replace with the group ID for which you want to fetch members
+# GitLab personal access token
+PRIVATE_TOKEN = 'glpat-JPXQyL_BUaMJMAKJNwoQ'  # Replace with your token
+BASE_URL = 'https://gitlab.com/api/v4'
 
-# Headers for the GitLab API
-headers = {
-    "PRIVATE-TOKEN": PRIVATE_TOKEN
-}
+# Parent subgroup ID (replace with your actual subgroup ID)
+parent_subgroup_id = '1234567'  # Replace with your subgroup ID
 
-def get_group_members(group_id, members=[], group_name=""):
-    """Fetch all members of a group including subgroups, and return a list of members with their access levels."""
+# Headers for authentication
+headers = {'PRIVATE-TOKEN': PRIVATE_TOKEN}
+
+# Function to get members of a group or project
+def get_members(entity_type, entity_id):
+    url = f"{BASE_URL}/{entity_type}/{entity_id}/members/all"
+    members = []
     page = 1
     per_page = 100
-    members.append({"name": f"Members in {group_name} group", "username": "", "group_id": group_id, "access_level": ""})  # Add group header row
-    
     while True:
-        url = f"{GITLAB_API_URL}/groups/{group_id}/members/all?per_page={per_page}&page={page}"
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            print(f"Error fetching group members: {response.status_code}")
+        response = requests.get(f"{url}?per_page={per_page}&page={page}", headers=headers)
+        if response.status_code != 200 or len(response.json()) == 0:
             break
-
-        data = response.json()
-        if not data:
-            break
-
-        for member in data:
-            members.append({
-                "name": member.get("name"),
-                "username": member.get("username"),
-                "group_id": group_id,
-                "access_level": member.get("access_level")
-            })
-
+        members.extend(response.json())
         page += 1
-
     return members
 
-def get_subgroup_projects(group_id):
-    """Fetch all subgroups and projects within the group recursively."""
-    projects = []
-    subgroups = []
-    # Fetch subgroups
-    url = f"{GITLAB_API_URL}/groups/{group_id}/subgroups"
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        subgroups = response.json()
+# Function to get all projects or subgroups recursively
+def get_projects_and_subgroups(group_id):
+    projects_url = f"{BASE_URL}/groups/{group_id}/projects?per_page=100"
+    subgroups_url = f"{BASE_URL}/groups/{group_id}/subgroups?per_page=100"
 
-    # Fetch projects
-    url = f"{GITLAB_API_URL}/groups/{group_id}/projects"
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        projects = response.json()
+    # Get all projects
+    projects = requests.get(projects_url, headers=headers).json()
 
-    return subgroups, projects
+    # Get all subgroups
+    subgroups = requests.get(subgroups_url, headers=headers).json()
 
-def export_to_csv(members, filename="gitlab_members.csv"):
-    """Export the list of members to a CSV file."""
-    with open(filename, mode="w", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=["name", "username", "group_id", "access_level"])
-        writer.writeheader()
-        for member in members:
-            writer.writerow(member)
+    all_entities = []
 
-def main():
-    all_members = []
-
-    # Get members for the main group
-    print(f"Fetching members for group ID: {GROUP_ID}")
-    all_members = get_group_members(GROUP_ID, group_name="Root Group")  # Set the group name here as "Root Group"
-
-    # Get subgroups and projects recursively
-    subgroups, projects = get_subgroup_projects(GROUP_ID)
-
-    # Fetch members for subgroups
-    for subgroup in subgroups:
-        print(f"Fetching members for subgroup: {subgroup['name']} (ID: {subgroup['id']})")
-        all_members += get_group_members(subgroup["id"], group_name=subgroup['name'])
-
-    # Fetch members for each project
+    # Add projects and their members
     for project in projects:
-        print(f"Fetching members for project: {project['name']} (ID: {project['id']})")
-        # Add a row with project header before fetching members
-        all_members.append({"name": f"Members in {project['name']} project", "username": "", "group_id": project['id'], "access_level": ""})
-        url = f"{GITLAB_API_URL}/projects/{project['id']}/members"
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            project_members = response.json()
-            for member in project_members:
-                all_members.append({
-                    "name": member.get("name"),
-                    "username": member.get("username"),
-                    "group_id": project['id'],
-                    "access_level": member.get("access_level")
-                })
+        project_id = project['id']
+        project_name = project['name']
+        members = get_members('projects', project_id)
+        for member in members:
+            all_entities.append({
+                'entity_type': 'Project',
+                'entity_name': project_name,
+                'member_name': member['name'],
+                'member_username': member['username'],
+                'access_level': member['access_level']
+            })
 
-    # Export all members to CSV
-    print("Exporting members to CSV...")
-    export_to_csv(all_members)
+    # Add subgroups and their members
+    for subgroup in subgroups:
+        subgroup_id = subgroup['id']
+        subgroup_name = subgroup['name']
+        members = get_members('groups', subgroup_id)
+        for member in members:
+            all_entities.append({
+                'entity_type': 'Subgroup',
+                'entity_name': subgroup_name,
+                'member_name': member['name'],
+                'member_username': member['username'],
+                'access_level': member['access_level']
+            })
 
-if __name__ == "__main__":
-    main()
+        # Recursively process subgroups of the current subgroup
+        all_entities.extend(get_projects_and_subgroups(subgroup_id))
+
+    return all_entities
+
+# Step 1: Retrieve all users from the parent subgroup and its subgroups/projects
+entities = get_projects_and_subgroups(parent_subgroup_id)
+
+# Write all members to a CSV file
+csv_filename = "members_access_levels.csv"
+with open(csv_filename, mode='w', newline='') as file:
+    writer = csv.DictWriter(file, fieldnames=['entity_type', 'entity_name', 'member_name', 'member_username', 'access_level'])
+    writer.writeheader()
+    writer.writerows(entities)
+
+print(f"All members and their access levels have been written to {csv_filename}")
+
+# Step 2: Filter for a specific member (replace with the actual username)
+unique_member_username = 'specific_user'  # Replace with the username you want to filter for
+
+member_entities = [e for e in entities if e['member_username'] == unique_member_username]
+
+# Print the filtered results for the specific user
+if member_entities:
+    print(f"\nAccess levels for user '{unique_member_username}':\n")
+    for entity in member_entities:
+        print(f"{entity['entity_type']}: {entity['entity_name']} - Access Level: {entity['access_level']}")
+else:
+    print(f"No results found for user '{unique_member_username}'.")
+
+# Optional: Write filtered results for the specific user to a CSV file
+filtered_csv_filename = f"{unique_member_username}_access_levels.csv"
+with open(filtered_csv_filename, mode='w', newline='') as file:
+    writer = csv.DictWriter(file, fieldnames=['entity_type', 'entity_name', 'member_name', 'member_username', 'access_level'])
+    writer.writeheader()
+    writer.writerows(member_entities)
+
+print(f"\nFiltered access levels for '{unique_member_username}' have been written to {filtered_csv_filename}")
 
 
 if __name__ == "__main__":

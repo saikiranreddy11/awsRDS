@@ -111,115 +111,83 @@ if __name__ == "__main__":
 
 
 
-import requests
-import csv
+#!/bin/bash
 
-# GitLab personal access token
-PRIVATE_TOKEN = 'glpat-JPXQyL_BUaMJMAKJNwoQ'  # Replace with your token
-BASE_URL = 'https://gitlab.com/api/v4'
+# Replace with your actual subgroup ID and access token
+parent_group_id=<your_parent_subgroup_id>  # Replace with your parent group ID
+private_token=<your_access_token>  # Replace with your actual access token
 
-# Parent subgroup ID (replace with your actual subgroup ID)
-parent_subgroup_id = '1234567'  # Replace with your subgroup ID
+# Output file
+output_file="members_access_report.csv"
+echo "Member Name, Username, Path, Access Level" > $output_file
 
-# Headers for authentication
-headers = {'PRIVATE-TOKEN': PRIVATE_TOKEN}
+# A function to get all members of a subgroup or project and append them to a global list
+declare -A member_access_map
 
-# Function to get members of a group or project
-def get_members(entity_type, entity_id):
-    url = f"{BASE_URL}/{entity_type}/{entity_id}/members/all"
-    members = []
-    page = 1
-    per_page = 100
-    while True:
-        response = requests.get(f"{url}?per_page={per_page}&page={page}", headers=headers)
-        if response.status_code != 200 or len(response.json()) == 0:
-            break
-        members.extend(response.json())
-        page += 1
-    return members
+get_members() {
+  local entity_type=$1
+  local entity_id=$2
+  local entity_path=$3
 
-# Function to get all projects or subgroups recursively
-def get_projects_and_subgroups(group_id):
-    projects_url = f"{BASE_URL}/groups/{group_id}/projects?per_page=100"
-    subgroups_url = f"{BASE_URL}/groups/{group_id}/subgroups?per_page=100"
+  # Get members for the current entity (subgroup or project)
+  local page=1
+  local per_page=100
+  while true; do
+    response=$(curl --silent --header "PRIVATE-TOKEN: $private_token" "https://gitlab.com/api/v4/$entity_type/$entity_id/members?per_page=$per_page&page=$page")
+    
+    # Break if the response is empty
+    if [[ $(echo "$response" | jq '. | length') -eq 0 ]]; then
+      break
+    fi
 
-    # Get all projects
-    projects = requests.get(projects_url, headers=headers).json()
+    # Process each member in the response
+    echo "$response" | jq -r '.[] | "\(.name), \(.username), '$entity_path', \(.access_level)"' >> $output_file
+    
+    # Store the access path and access level in a map (for unique members later)
+    while IFS=, read -r name username path access_level; do
+      key="$username"
+      value="$path $access_level"
+      member_access_map[$key]+="$value\n"
+    done <<< "$(echo "$response" | jq -r '.[] | "\(.name), \(.username), '$entity_path', \(.access_level)"')"
 
-    # Get all subgroups
-    subgroups = requests.get(subgroups_url, headers=headers).json()
+    ((page++))
+  done
+}
 
-    all_entities = []
+# Recursive function to get all subgroups and projects in a group
+get_subgroups_and_projects() {
+  local group_id=$1
+  local group_path=$2
 
-    # Add projects and their members
-    for project in projects:
-        project_id = project['id']
-        project_name = project['name']
-        members = get_members('projects', project_id)
-        for member in members:
-            all_entities.append({
-                'entity_type': 'Project',
-                'entity_name': project_name,
-                'member_name': member['name'],
-                'member_username': member['username'],
-                'access_level': member['access_level']
-            })
+  # Get all subgroups of this group
+  subgroups=$(curl --silent --header "PRIVATE-TOKEN: $private_token" "https://gitlab.com/api/v4/groups/$group_id/subgroups?per_page=100")
+  echo "$subgroups" | jq -r '.[] | "\(.id) \(.full_path)"' | while read subgroup_id subgroup_path; do
+    echo "Processing subgroup: $subgroup_path"
+    get_members "groups" "$subgroup_id" "$subgroup_path"
+    get_subgroups_and_projects "$subgroup_id" "$subgroup_path"  # Recursively get all subgroups
+  done
 
-    # Add subgroups and their members
-    for subgroup in subgroups:
-        subgroup_id = subgroup['id']
-        subgroup_name = subgroup['name']
-        members = get_members('groups', subgroup_id)
-        for member in members:
-            all_entities.append({
-                'entity_type': 'Subgroup',
-                'entity_name': subgroup_name,
-                'member_name': member['name'],
-                'member_username': member['username'],
-                'access_level': member['access_level']
-            })
+  # Get all projects of this group
+  projects=$(curl --silent --header "PRIVATE-TOKEN: $private_token" "https://gitlab.com/api/v4/groups/$group_id/projects?per_page=100")
+  echo "$projects" | jq -r '.[] | "\(.id) \(.path_with_namespace)"' | while read project_id project_path; do
+    echo "Processing project: $project_path"
+    get_members "projects" "$project_id" "$project_path"
+  done
+}
 
-        # Recursively process subgroups of the current subgroup
-        all_entities.extend(get_projects_and_subgroups(subgroup_id))
+# Start by processing the parent group and its members
+get_members "groups" "$parent_group_id" "parent_group"
 
-    return all_entities
+# Then process all subgroups and projects recursively
+get_subgroups_and_projects "$parent_group_id" "parent_group"
 
-# Step 1: Retrieve all users from the parent subgroup and its subgroups/projects
-entities = get_projects_and_subgroups(parent_subgroup_id)
+# Optionally, print unique members and their access across subgroups/projects
+echo "Unique members and their access paths:"
+for username in "${!member_access_map[@]}"; do
+  echo -e "Member: $username\nAccess:\n${member_access_map[$username]}"
+done
 
-# Write all members to a CSV file
-csv_filename = "members_access_levels.csv"
-with open(csv_filename, mode='w', newline='') as file:
-    writer = csv.DictWriter(file, fieldnames=['entity_type', 'entity_name', 'member_name', 'member_username', 'access_level'])
-    writer.writeheader()
-    writer.writerows(entities)
+echo "Access report has been saved to $output_file"
 
-print(f"All members and their access levels have been written to {csv_filename}")
-
-# Step 2: Filter for a specific member (replace with the actual username)
-unique_member_username = 'specific_user'  # Replace with the username you want to filter for
-
-member_entities = [e for e in entities if e['member_username'] == unique_member_username]
-
-# Print the filtered results for the specific user
-if member_entities:
-    print(f"\nAccess levels for user '{unique_member_username}':\n")
-    for entity in member_entities:
-        print(f"{entity['entity_type']}: {entity['entity_name']} - Access Level: {entity['access_level']}")
-else:
-    print(f"No results found for user '{unique_member_username}'.")
-
-# Optional: Write filtered results for the specific user to a CSV file
-filtered_csv_filename = f"{unique_member_username}_access_levels.csv"
-with open(filtered_csv_filename, mode='w', newline='') as file:
-    writer = csv.DictWriter(file, fieldnames=['entity_type', 'entity_name', 'member_name', 'member_username', 'access_level'])
-    writer.writeheader()
-    writer.writerows(member_entities)
-
-print(f"\nFiltered access levels for '{unique_member_username}' have been written to {filtered_csv_filename}")
-
-
-if __name__ == "__main__":
-    main()
 
 

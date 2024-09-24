@@ -125,6 +125,10 @@ def main():
     print("Fetching all subgroups and projects...")
     resources = get_subgroups_and_projects(PARENT_GROUP_ID)
 
+    total_projects = 0
+    projects_with_pipeline = 0
+    projects_without_pipeline = 0
+
     if not resources:
         print("No resources fetched. Please check the response or permissions.")
         return
@@ -135,14 +139,22 @@ def main():
 
     for resource in resources:
         if resource['type'] == 'project':
+            total_projects += 1
             print(f"Checking project: {resource['name']} (ID: {resource['id']})")
 
             has_pipeline = check_project_pipeline(resource['id'])
             if has_pipeline:
+                projects_with_pipeline += 1
                 print(f"Project '{resource['name']}' has a CI/CD pipeline.")
             else:
+                projects_without_pipeline += 1
                 print(f"Project '{resource['name']}' does NOT have a CI/CD pipeline.")
+
+    # Output the counts
+    print("\nSummary:")
+    print(f"Total Projects: {total_projects}")
+    print(f"Projects with CI/CD Pipeline: {projects_with_pipeline}")
+    print(f"Projects without CI/CD Pipeline: {projects_without_pipeline}")
 
 if __name__ == '__main__':
     main()
-

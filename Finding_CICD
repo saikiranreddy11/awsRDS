@@ -30,3 +30,119 @@ echo "$projects" | jq -r '.[] | "\(.id) \(.name) \(.default_branch)"' | while IF
     echo "Project: $project_name: Has pipeline"
   fi
 done
+
+
+
+
+
+
+
+
+
+
+
+
+
+import requests
+
+# Replace with your actual GitLab access token and parent group ID
+PRIVATE_TOKEN = 'your_private_token'
+PARENT_GROUP_ID = 'your_parent_group_id'
+GITLAB_URL = 'https://gitlab.com/api/v4'
+
+# Headers for API requests
+headers = {'PRIVATE-TOKEN': PRIVATE_TOKEN}
+
+# Helper function to handle paginated requests
+def get_all_pages(url, resource_type):
+    all_data = []
+    page = 1
+    per_page = 100
+
+    while True:
+        response = requests.get(f"{url}?per_page={per_page}&page={page}", headers=headers)
+        if response.status_code != 200:
+            print(f"Error fetching {resource_type}, Status Code: {response.status_code}")
+            return all_data
+
+        data = response.json()
+        if not data:
+            break
+        all_data.extend(data)
+        page += 1
+
+    return all_data
+
+# Function to recursively fetch subgroups and projects under a parent group
+def get_subgroups_and_projects(group_id):
+    all_resources = []
+
+    # Get subgroups within the group
+    subgroup_url = f"{GITLAB_URL}/groups/{group_id}/subgroups"
+    subgroups = get_all_pages(subgroup_url, 'subgroup')
+
+    for subgroup in subgroups:
+        all_resources.append({
+            'id': subgroup['id'],
+            'name': subgroup['name'],
+            'path': subgroup['full_path'],
+            'type': 'subgroup'
+        })
+        # Recursively fetch sub-subgroups and projects within this subgroup
+        all_resources += get_subgroups_and_projects(subgroup['id'])
+
+    # Get projects within the group
+    projects_url = f"{GITLAB_URL}/groups/{group_id}/projects"
+    projects = get_all_pages(projects_url, 'project')
+
+    for project in projects:
+        all_resources.append({
+            'id': project['id'],
+            'name': project['name'],
+            'path': project['path_with_namespace'],
+            'type': 'project'
+        })
+
+    return all_resources
+
+# Function to check if a project has a .gitlab-ci.yml file in any branch
+def check_project_pipeline(project_id):
+    branches_url = f"{GITLAB_URL}/projects/{project_id}/repository/branches"
+    branches = get_all_pages(branches_url, 'branches')
+
+    for branch in branches:
+        branch_name = branch['name']
+        # Check if the .gitlab-ci.yml file exists in the branch
+        response = requests.get(f"{GITLAB_URL}/projects/{project_id}/repository/files/.gitlab-ci.yml", headers=headers, params={'ref': branch_name})
+        
+        if response.status_code == 200:
+            return True  # .gitlab-ci.yml file exists in this branch
+
+    return False  # No .gitlab-ci.yml file found in any branch
+
+# Main function to gather all the data and check pipelines
+def main():
+    print("Fetching all subgroups and projects...")
+    resources = get_subgroups_and_projects(PARENT_GROUP_ID)
+
+    if not resources:
+        print("No resources fetched. Please check the response or permissions.")
+        return
+
+    print(f"Found {len(resources)} resources (subgroups and projects).")
+
+    print("Checking for GitLab CI/CD pipelines in each project...")
+
+    for resource in resources:
+        if resource['type'] == 'project':
+            print(f"Checking project: {resource['name']} (ID: {resource['id']})")
+
+            has_pipeline = check_project_pipeline(resource['id'])
+            if has_pipeline:
+                print(f"Project '{resource['name']}' has a CI/CD pipeline.")
+            else:
+                print(f"Project '{resource['name']}' does NOT have a CI/CD pipeline.")
+
+if __name__ == '__main__':
+    main()
+

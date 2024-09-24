@@ -358,6 +358,11 @@ if __name__ == '__main__':
 
 
 
+
+
+
+
+
 import requests
 import csv
 
@@ -392,18 +397,11 @@ def get_all_pages(url, resource_type):
 # Function to recursively fetch subgroups and projects under a parent subgroup
 def get_subgroups_and_projects(subgroup_id):
     all_resources = []
+    global project_count
 
     # Get subgroups within the subgroup
     subgroup_url = f"{GITLAB_URL}/groups/{subgroup_id}/subgroups"
     subgroups = get_all_pages(subgroup_url, 'subgroup')
-    
-    # First, add the parent subgroup itself (since its members need to be fetched)
-    all_resources.append({
-        'id': subgroup_id,
-        'name': 'Parent Subgroup',
-        'path': subgroup_id,  # You can replace this with a better name or full_path if available
-        'type': 'subgroup'
-    })
 
     for subgroup in subgroups:
         all_resources.append({
@@ -420,6 +418,7 @@ def get_subgroups_and_projects(subgroup_id):
     projects = get_all_pages(projects_url, 'project')
 
     for project in projects:
+        project_count += 1
         all_resources.append({
             'id': project['id'],
             'name': project['name'],
@@ -428,6 +427,19 @@ def get_subgroups_and_projects(subgroup_id):
         })
 
     return all_resources
+
+# Function to map access levels to descriptive strings
+def map_access_level(access_level):
+    access_mapping = {
+        0: 'No access',
+        5: 'Minimal access',
+        10: 'Guest',
+        20: 'Reporter',
+        30: 'Developer',
+        40: 'Maintainer',
+        50: 'Owner'
+    }
+    return access_mapping.get(access_level, 'Unknown')
 
 # Function to get members of a subgroup or project, including inherited members
 def get_members(resource_id, resource_type):
@@ -439,57 +451,43 @@ def get_members(resource_id, resource_type):
         members.append({
             'name': member.get('name', 'Unknown'),
             'username': member.get('username', 'Unknown'),
-            'access_level': member.get('access_level', 'Unknown'),
+            'access_level': map_access_level(member.get('access_level', 0)),  # Map access level to descriptive word
         })
-    
+
     return members
 
 # Function to create a CSV file for the output
-def write_to_csv(member_access, filename='member_access.csv'):
+def write_to_csv(resource_access, filename='resource_access.csv'):
     with open(filename, 'w', newline='') as csvfile:
-        fieldnames = ['Member Name', 'Member Username', 'Resource Path', 'Access Level']
+        fieldnames = ['Resource Path', 'Member Name', 'Member Username', 'Access Level']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
-        for (member_name, member_username), resources in member_access.items():
-            for resource in resources:
+        for resource in resource_access:
+            for member in resource['members']:
                 writer.writerow({
-                    'Member Name': member_name,
-                    'Member Username': member_username,
                     'Resource Path': resource['path'],
-                    'Access Level': resource['access_level']
+                    'Member Name': member['name'],
+                    'Member Username': member['username'],
+                    'Access Level': member['access_level']
                 })
-
-# Function to create a CSV of unique members
-def write_unique_members_to_csv(member_access, filename='unique_members.csv'):
-    unique_users = set()
-
-    for (member_name, member_username), _ in member_access.items():
-        unique_users.add((member_name, member_username))
-
-    with open(filename, 'w', newline='') as csvfile:
-        fieldnames = ['Member Name', 'Member Username']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-
-        for member_name, member_username in unique_users:
-            writer.writerow({
-                'Member Name': member_name,
-                'Member Username': member_username
-            })
 
 # Main function to gather all the data
 def main():
+    global project_count
+    project_count = 0
+
     print("Fetching all subgroups and projects...")
     resources = get_subgroups_and_projects(PARENT_SUBGROUP_ID)
 
-    unique_members = {}
+    resource_access = []
 
     if not resources:
         print("No resources fetched. Please check the response or permissions.")
         return
 
     print(f"Found {len(resources)} resources (subgroups and projects).")
+    print(f"Total number of projects: {project_count}")
 
     print("Fetching members for each subgroup and project...")
     for resource in resources:
@@ -499,28 +497,19 @@ def main():
             print(f"No members found for {resource['type']} {resource['name']}")
             continue
 
-        for member in resource_members:
-            member_key = (member['name'], member['username'])
-            if member_key not in unique_members:
-                unique_members[member_key] = []
+        resource_access.append({
+            'path': resource['path'],
+            'members': resource_members
+        })
 
-            unique_members[member_key].append({
-                'path': resource['path'],
-                'access_level': member['access_level']
-            })
+    # Write the data to a CSV
+    print("Writing data to 'resource_access.csv'...")
+    write_to_csv(resource_access, filename='resource_access.csv')
 
-    print(f"Found {len(unique_members)} unique members.")
-
-    # Write the main member access data
-    print("Writing data to 'member_access.csv'...")
-    write_to_csv(unique_members, filename='member_access.csv')
-
-    # Write unique users data
-    print("Writing unique members to 'unique_members.csv'...")
-    write_unique_members_to_csv(unique_members)
-
-    print("Done! Outputs written to 'member_access.csv' and 'unique_members.csv'")
+    print("Done! Output written to 'resource_access.csv'")
+    print(f"Total number of projects: {project_count}")
 
 if __name__ == '__main__':
     main()
+
 

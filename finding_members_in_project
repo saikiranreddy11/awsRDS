@@ -1,0 +1,128 @@
+import requests
+import csv
+
+# Replace with your actual GitLab access token and parent subgroup ID
+PRIVATE_TOKEN = 'your_private_token'
+PARENT_SUBGROUP_ID = 'your_parent_subgroup_id'
+GITLAB_URL = 'https://gitlab.com/api/v4'
+
+# Headers for API requests
+headers = {'PRIVATE-TOKEN': PRIVATE_TOKEN}
+
+# Helper function to handle paginated requests
+def get_all_pages(url, resource_type):
+    all_data = []
+    page = 1
+    per_page = 100
+
+    while True:
+        response = requests.get(f"{url}?per_page={per_page}&page={page}", headers=headers)
+        if response.status_code != 200:
+            print(f"Error fetching {resource_type} data, Status Code: {response.status_code}")
+            return all_data
+
+        data = response.json()
+        if not data:
+            break
+        all_data.extend(data)
+        page += 1
+
+    return all_data
+
+# Function to recursively fetch subgroups and projects under a parent subgroup
+def get_subgroups_and_projects(subgroup_id):
+    all_resources = []
+
+    # Get subgroups within the subgroup
+    subgroup_url = f"{GITLAB_URL}/groups/{subgroup_id}/subgroups"
+    subgroups = get_all_pages(subgroup_url, 'subgroup')
+
+    for subgroup in subgroups:
+        all_resources.append({
+            'id': subgroup['id'],
+            'name': subgroup['name'],
+            'path': subgroup['full_path'],
+            'type': 'subgroup'
+        })
+        # Recursively fetch sub-subgroups and projects within this subgroup
+        all_resources += get_subgroups_and_projects(subgroup['id'])
+
+    # Get projects within the subgroup
+    projects_url = f"{GITLAB_URL}/groups/{subgroup_id}/projects"
+    projects = get_all_pages(projects_url, 'project')
+
+    for project in projects:
+        all_resources.append({
+            'id': project['id'],
+            'name': project['name'],
+            'path': project['path_with_namespace'],
+            'type': 'project'
+        })
+
+    return all_resources
+
+# Function to get members of a subgroup or project, including inherited members
+def get_members(resource_id, resource_type):
+    members = []
+    member_url = f"{GITLAB_URL}/{resource_type}s/{resource_id}/members/all"
+    all_members = get_all_pages(member_url, f'{resource_type} members')
+
+    for member in all_members:
+        members.append({
+            'name': member.get('name', 'Unknown'),
+            'username': member.get('username', 'Unknown'),
+            'access_level': member.get('access_level', 'Unknown'),
+        })
+
+    return members
+
+# Function to create a CSV file for the output
+def write_to_csv(resource_access, filename='resource_access.csv'):
+    with open(filename, 'w', newline='') as csvfile:
+        fieldnames = ['Resource Path', 'Member Name', 'Member Username', 'Access Level']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for resource in resource_access:
+            for member in resource['members']:
+                writer.writerow({
+                    'Resource Path': resource['path'],
+                    'Member Name': member['name'],
+                    'Member Username': member['username'],
+                    'Access Level': member['access_level']
+                })
+
+# Main function to gather all the data
+def main():
+    print("Fetching all subgroups and projects...")
+    resources = get_subgroups_and_projects(PARENT_SUBGROUP_ID)
+
+    resource_access = []
+
+    if not resources:
+        print("No resources fetched. Please check the response or permissions.")
+        return
+
+    print(f"Found {len(resources)} resources (subgroups and projects).")
+
+    print("Fetching members for each subgroup and project...")
+    for resource in resources:
+        resource_members = get_members(resource['id'], resource['type'])
+
+        if not resource_members:
+            print(f"No members found for {resource['type']} {resource['name']}")
+            continue
+
+        resource_access.append({
+            'path': resource['path'],
+            'members': resource_members
+        })
+
+    # Write the data to a CSV
+    print("Writing data to 'resource_access.csv'...")
+    write_to_csv(resource_access, filename='resource_access.csv')
+
+    print("Done! Output written to 'resource_access.csv'")
+
+if __name__ == '__main__':
+    main()

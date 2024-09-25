@@ -1,71 +1,110 @@
-import gitlab
+import requests
 import csv
 
-# Replace with your GitLab private token
+# Replace with your actual GitLab token and group ID
 PRIVATE_TOKEN = 'your_private_token'
-
-# GitLab server URL
-GITLAB_URL = 'https://gitlab.com'
-
-# Parent group ID (replace this with your parent group ID)
 PARENT_GROUP_ID = 'your_parent_group_id'
+GITLAB_URL = 'https://gitlab.com/api/v4'
 
-# Initialize GitLab connection
-gl = gitlab.Gitlab(GITLAB_URL, private_token=PRIVATE_TOKEN)
-gl.auth()
+# Headers for API requests
+headers = {'PRIVATE-TOKEN': PRIVATE_TOKEN}
 
-# Recursive function to fetch all projects in the group and subgroups
-def get_all_projects_in_group(group_id, all_projects=[]):
-    # Fetch group information
-    group = gl.groups.get(group_id)
+# Function to recursively get all projects in a group (including subgroups)
+def get_all_projects_in_group(group_id):
+    projects = []
+    # Fetch projects in the group
+    page = 1
+    per_page = 100
+    
+    while True:
+        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/projects', headers=headers, params={'per_page': per_page, 'page': page})
+        if response.status_code == 200:
+            projects_in_group = response.json()
+            if not projects_in_group:
+                break
+            projects.extend(projects_in_group)
+            page += 1
+        else:
+            print(f"Error fetching projects for group ID: {group_id}, Status Code: {response.status_code}")
+            return projects
 
-    # Fetch projects in the current group
-    projects = group.projects.list(all=True)
-    for project in projects:
-        all_projects.append({
-            'id': project.id,
-            'name': project.name,
-            'path': project.path_with_namespace,
-            'web_url': project.web_url,
-        })
+    # Fetch subgroups
+    page = 1
+    while True:
+        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/subgroups', headers=headers, params={'per_page': per_page, 'page': page})
+        if response.status_code == 200:
+            subgroups = response.json()
+            if not subgroups:
+                break
+            for subgroup in subgroups:
+                # Recursively fetch projects in subgroups
+                projects.extend(get_all_projects_in_group(subgroup['id']))
+            page += 1
+        else:
+            print(f"Error fetching subgroups for group ID: {group_id}, Status Code: {response.status_code}")
+            break
 
-    # Fetch subgroups and recursively fetch their projects
-    subgroups = group.subgroups.list(all=True)
-    for subgroup in subgroups:
-        get_all_projects_in_group(subgroup.id, all_projects)
+    return projects
 
-    return all_projects
+# Function to check if a project has a CI/CD pipeline
+def check_cicd_pipeline(project_id):
+    response = requests.get(f'{GITLAB_URL}/projects/{project_id}/repository/files/.gitlab-ci.yml?ref=master', headers=headers)
+    if response.status_code == 200:
+        return "Yes"
+    else:
+        return "No"
 
-# Write projects to CSV
-def write_projects_to_csv(projects, filename='projects_list.csv'):
-    with open(filename, mode='w', newline='', encoding='utf-8') as csv_file:
-        fieldnames = ['ID', 'Name', 'Path', 'URL']
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        
+# Function to get the last commit date of a project
+def get_last_commit_date(project_id):
+    response = requests.get(f'{GITLAB_URL}/projects/{project_id}/repository/commits', headers=headers, params={'per_page': 1})
+    if response.status_code == 200:
+        commits = response.json()
+        if commits:
+            return commits[0]['created_at']
+    return "No commits"
+
+# Write the data to a CSV file
+def write_to_csv(projects_data, filename='projects_with_cicd.csv'):
+    with open(filename, 'w', newline='') as csvfile:
+        fieldnames = ['Project Name', 'Project Path', 'Has CI/CD Pipeline', 'Last Commit Date']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
-        for project in projects:
-            writer.writerow({
-                'ID': project['id'],
-                'Name': project['name'],
-                'Path': project['path'],
-                'URL': project['web_url'],
-            })
 
-    print(f"Projects data successfully written to {filename}")
+        for project in projects_data:
+            writer.writerow({
+                'Project Name': project['name'],
+                'Project Path': project['path_with_namespace'],
+                'Has CI/CD Pipeline': project['has_cicd'],
+                'Last Commit Date': project['last_commit']
+            })
 
 # Main function
 def main():
-    print(f"Fetching all projects for group ID: {PARENT_GROUP_ID}")
-    all_projects = get_all_projects_in_group(PARENT_GROUP_ID)
+    print("Fetching all projects and subgroups recursively...")
+    projects = get_all_projects_in_group(PARENT_GROUP_ID)
+    projects_data = []
 
-    if not all_projects:
+    if not projects:
         print("No projects found.")
         return
 
-    print(f"Found {len(all_projects)} projects.")
+    print(f"Found {len(projects)} projects.")
     
-    # Write the project data to CSV
-    write_projects_to_csv(all_projects)
+    # Process each project
+    for project in projects:
+        print(f"Processing project: {project['name']} (ID: {project['id']})")
+        has_cicd = check_cicd_pipeline(project['id'])
+        last_commit = get_last_commit_date(project['id'])
+        projects_data.append({
+            'name': project['name'],
+            'path_with_namespace': project['path_with_namespace'],
+            'has_cicd': has_cicd,
+            'last_commit': last_commit
+        })
+    
+    # Write the data to a CSV file
+    write_to_csv(projects_data)
+    print(f"Data written to 'projects_with_cicd.csv'")
 
 if __name__ == '__main__':
     main()

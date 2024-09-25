@@ -1,94 +1,71 @@
-import requests
+import gitlab
 import csv
 
-# Replace with your actual GitLab access token and parent group ID
+# Replace with your GitLab private token
 PRIVATE_TOKEN = 'your_private_token'
-PARENT_GROUP_ID = 'your_parent_group_id'  # The top-level group ID
-GITLAB_URL = 'https://gitlab.com/api/v4'
 
-# Headers for API requests
-headers = {'PRIVATE-TOKEN': PRIVATE_TOKEN}
+# GitLab server URL
+GITLAB_URL = 'https://gitlab.com'
 
-# Function to recursively get all subgroups and projects
-def get_subgroups_and_projects(group_id, all_projects=[]):
-    # First, fetch all subgroups within the current group
-    page = 1
-    while True:
-        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/subgroups', headers=headers, params={'per_page': 100, 'page': page})
-        
-        if response.status_code == 200:
-            subgroups = response.json()
-        else:
-            print(f"Error fetching subgroups for group ID: {group_id}, Status Code: {response.status_code}")
-            return all_projects
-        
-        if not subgroups:
-            break
+# Parent group ID (replace this with your parent group ID)
+PARENT_GROUP_ID = 'your_parent_group_id'
 
-        # Recursively fetch subgroups and projects
-        for subgroup in subgroups:
-            print(f"Fetching projects for subgroup: {subgroup['name']} (ID: {subgroup['id']})")
-            get_subgroups_and_projects(subgroup['id'], all_projects)
-        
-        page += 1
+# Initialize GitLab connection
+gl = gitlab.Gitlab(GITLAB_URL, private_token=PRIVATE_TOKEN)
+gl.auth()
 
-    # Now fetch all projects for the current group
-    page = 1
-    while True:
-        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/projects', headers=headers, params={'per_page': 100, 'page': page})
+# Recursive function to fetch all projects in the group and subgroups
+def get_all_projects_in_group(group_id, all_projects=[]):
+    # Fetch group information
+    group = gl.groups.get(group_id)
 
-        if response.status_code == 200:
-            projects = response.json()
-        else:
-            print(f"Error fetching projects for group ID: {group_id}, Status Code: {response.status_code}")
-            return all_projects
+    # Fetch projects in the current group
+    projects = group.projects.list(all=True)
+    for project in projects:
+        all_projects.append({
+            'id': project.id,
+            'name': project.name,
+            'path': project.path_with_namespace,
+            'web_url': project.web_url,
+        })
 
-        if not projects:
-            break
-
-        # Append project details to the list
-        for project in projects:
-            all_projects.append({
-                'id': project['id'],
-                'name': project['name'],
-                'path': project['path_with_namespace'],
-                'web_url': project['web_url'],
-            })
-
-        page += 1
+    # Fetch subgroups and recursively fetch their projects
+    subgroups = group.subgroups.list(all=True)
+    for subgroup in subgroups:
+        get_all_projects_in_group(subgroup.id, all_projects)
 
     return all_projects
 
-# Function to write the project list to a CSV file
-def write_to_csv(projects, filename='projects_list.csv'):
+# Write projects to CSV
+def write_projects_to_csv(projects, filename='projects_list.csv'):
     with open(filename, mode='w', newline='', encoding='utf-8') as csv_file:
         fieldnames = ['ID', 'Name', 'Path', 'URL']
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-
+        
         writer.writeheader()
         for project in projects:
             writer.writerow({
                 'ID': project['id'],
                 'Name': project['name'],
                 'Path': project['path'],
-                'URL': project['web_url']
+                'URL': project['web_url'],
             })
 
-    print(f"Project data successfully written to {filename}")
+    print(f"Projects data successfully written to {filename}")
 
 # Main function
 def main():
-    print(f"Fetching all projects for parent group ID: {PARENT_GROUP_ID}")
-    projects = get_subgroups_and_projects(PARENT_GROUP_ID)
+    print(f"Fetching all projects for group ID: {PARENT_GROUP_ID}")
+    all_projects = get_all_projects_in_group(PARENT_GROUP_ID)
 
-    if not projects:
+    if not all_projects:
         print("No projects found.")
         return
 
-    print(f"Found {len(projects)} projects.")
+    print(f"Found {len(all_projects)} projects.")
     
     # Write the project data to CSV
-    write_to_csv(projects)
+    write_projects_to_csv(all_projects)
 
 if __name__ == '__main__':
     main()

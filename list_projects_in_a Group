@@ -1,4 +1,5 @@
 import requests
+import csv
 
 # Replace with your actual GitLab access token and parent group ID
 PRIVATE_TOKEN = 'your_private_token'
@@ -60,6 +61,23 @@ def get_subgroups_and_projects(group_id):
 
     return all_projects
 
+# Function to write projects to CSV
+def write_to_csv(projects, filename='projects_list.csv'):
+    with open(filename, mode='w', newline='', encoding='utf-8') as csv_file:
+        fieldnames = ['ID', 'Name', 'Path', 'URL']
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+
+        writer.writeheader()
+        for project in projects:
+            writer.writerow({
+                'ID': project['id'],
+                'Name': project['name'],
+                'Path': project['path'],
+                'URL': project['web_url']
+            })
+
+    print(f"Project data successfully written to {filename}")
+
 # Main function
 def main():
     print(f"Fetching all projects for parent group ID: {PARENT_GROUP_ID}")
@@ -69,9 +87,10 @@ def main():
         print("No projects found.")
         return
 
-    print(f"Found {len(projects)} projects:")
-    for project in projects:
-        print(f"Project Name: {project['name']}, Path: {project['path']}, URL: {project['web_url']}")
+    print(f"Found {len(projects)} projects.")
+    
+    # Write the project data to CSV
+    write_to_csv(projects)
 
 if __name__ == '__main__':
     main()

@@ -63,7 +63,7 @@ def write_to_csv(members_data, unique_members):
         writer = csv.writer(file)
         writer.writerow(["Member Name", "Username"])
         for member in unique_members:
-            writer.writerow([member['name'], member['username']])
+            writer.writerow([member[0], member[1]])  # member is a tuple now (name, username)
 
 def main():
     group_id = '<your_group_id>'  # Replace with your actual group ID
@@ -83,7 +83,7 @@ def main():
         members = get_members(resource['id'], resource_type, token)
 
         for member in members:
-            member_key = (member['name'], member['username'])
+            member_key = (member['name'], member['username'])  # Tuple for unique member identification
             # Avoid duplicates in unique members
             if member_key not in unique_members:
                 unique_members[member_key] = {

@@ -3,43 +3,40 @@ import csv
 
 # Replace with your actual GitLab access token and parent group ID
 PRIVATE_TOKEN = 'your_private_token'
-PARENT_GROUP_ID = 'your_parent_group_id'
+PARENT_GROUP_ID = 'your_parent_group_id'  # The top-level group ID
 GITLAB_URL = 'https://gitlab.com/api/v4'
 
 # Headers for API requests
 headers = {'PRIVATE-TOKEN': PRIVATE_TOKEN}
 
-# Function to get all subgroups and projects recursively
-def get_subgroups_and_projects(group_id):
-    all_projects = []
+# Function to recursively get all subgroups and projects
+def get_subgroups_and_projects(group_id, all_projects=[]):
+    # First, fetch all subgroups within the current group
     page = 1
-    per_page = 100
-
-    # Get all subgroups within the group
     while True:
-        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/subgroups', headers=headers, params={'per_page': per_page, 'page': page})
-
+        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/subgroups', headers=headers, params={'per_page': 100, 'page': page})
+        
         if response.status_code == 200:
             subgroups = response.json()
         else:
             print(f"Error fetching subgroups for group ID: {group_id}, Status Code: {response.status_code}")
             return all_projects
-
+        
         if not subgroups:
             break
-        
-        # Recursively get subgroups and projects for each subgroup
+
+        # Recursively fetch subgroups and projects
         for subgroup in subgroups:
             print(f"Fetching projects for subgroup: {subgroup['name']} (ID: {subgroup['id']})")
-            all_projects += get_subgroups_and_projects(subgroup['id'])  # Recursive call for subgroups
+            get_subgroups_and_projects(subgroup['id'], all_projects)
         
         page += 1
 
-    # Get all projects in this group
+    # Now fetch all projects for the current group
     page = 1
     while True:
-        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/projects', headers=headers, params={'per_page': per_page, 'page': page})
-        
+        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/projects', headers=headers, params={'per_page': 100, 'page': page})
+
         if response.status_code == 200:
             projects = response.json()
         else:
@@ -49,6 +46,7 @@ def get_subgroups_and_projects(group_id):
         if not projects:
             break
 
+        # Append project details to the list
         for project in projects:
             all_projects.append({
                 'id': project['id'],
@@ -61,7 +59,7 @@ def get_subgroups_and_projects(group_id):
 
     return all_projects
 
-# Function to write projects to CSV
+# Function to write the project list to a CSV file
 def write_to_csv(projects, filename='projects_list.csv'):
     with open(filename, mode='w', newline='', encoding='utf-8') as csv_file:
         fieldnames = ['ID', 'Name', 'Path', 'URL']

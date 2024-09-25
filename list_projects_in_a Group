@@ -1,0 +1,77 @@
+import requests
+
+# Replace with your actual GitLab access token and parent group ID
+PRIVATE_TOKEN = 'your_private_token'
+PARENT_GROUP_ID = 'your_parent_group_id'
+GITLAB_URL = 'https://gitlab.com/api/v4'
+
+# Headers for API requests
+headers = {'PRIVATE-TOKEN': PRIVATE_TOKEN}
+
+# Function to get all subgroups and projects recursively
+def get_subgroups_and_projects(group_id):
+    all_projects = []
+    page = 1
+    per_page = 100
+
+    # Get all subgroups within the group
+    while True:
+        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/subgroups', headers=headers, params={'per_page': per_page, 'page': page})
+
+        if response.status_code == 200:
+            subgroups = response.json()
+        else:
+            print(f"Error fetching subgroups for group ID: {group_id}, Status Code: {response.status_code}")
+            return all_projects
+
+        if not subgroups:
+            break
+        
+        # Recursively get subgroups and projects for each subgroup
+        for subgroup in subgroups:
+            print(f"Fetching projects for subgroup: {subgroup['name']} (ID: {subgroup['id']})")
+            all_projects += get_subgroups_and_projects(subgroup['id'])  # Recursive call for subgroups
+        
+        page += 1
+
+    # Get all projects in this group
+    page = 1
+    while True:
+        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/projects', headers=headers, params={'per_page': per_page, 'page': page})
+        
+        if response.status_code == 200:
+            projects = response.json()
+        else:
+            print(f"Error fetching projects for group ID: {group_id}, Status Code: {response.status_code}")
+            return all_projects
+
+        if not projects:
+            break
+
+        for project in projects:
+            all_projects.append({
+                'id': project['id'],
+                'name': project['name'],
+                'path': project['path_with_namespace'],
+                'web_url': project['web_url'],
+            })
+
+        page += 1
+
+    return all_projects
+
+# Main function
+def main():
+    print(f"Fetching all projects for parent group ID: {PARENT_GROUP_ID}")
+    projects = get_subgroups_and_projects(PARENT_GROUP_ID)
+
+    if not projects:
+        print("No projects found.")
+        return
+
+    print(f"Found {len(projects)} projects:")
+    for project in projects:
+        print(f"Project Name: {project['name']}, Path: {project['path']}, URL: {project['web_url']}")
+
+if __name__ == '__main__':
+    main()

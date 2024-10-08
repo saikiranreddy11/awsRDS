@@ -70,7 +70,7 @@ def get_last_commit_date(project_id):
             return commits[0]['created_at']
     return "No commits"
 
-# Function to check if Terraform files in a project use modules
+# Function to check if Terraform files in a project use modules by looking for the 'source' keyword
 def check_terraform_modules(project_id):
     # Fetch the list of files in the project repository
     response = requests.get(f'{GITLAB_URL}/projects/{project_id}/repository/tree', headers=headers, params={'recursive': True})
@@ -81,14 +81,14 @@ def check_terraform_modules(project_id):
         if not terraform_files:
             return "No"
 
-        # Check for module usage in each Terraform file
+        # Check for 'source' keyword in each Terraform file
         for file in terraform_files:
             file_path = file['path']
             file_response = requests.get(f'{GITLAB_URL}/projects/{project_id}/repository/files/{file_path}/raw', headers=headers, params={'ref': 'master'})
             if file_response.status_code == 200:
                 content = file_response.text
-                # Check if the file contains the word "module"
-                if re.search(r'\bmodule\b', content):
+                # Check if the file contains the word "source"
+                if re.search(r'\bsource\b', content):
                     return "Yes"
     return "No"
 

@@ -1,0 +1,146 @@
+import requests
+import csv
+import gitlab
+
+PRIVATE_TOKEN = 'glpat-JPXQyL_BUaJMWAKJNwoQ'
+PARENT_GROUP_ID = '53057023'  # The top-level group ID
+GITLAB_URL = 'https://gitlab.com/api/v4'
+
+# Headers for API requests
+headers = {'PRIVATE-TOKEN': PRIVATE_TOKEN}
+
+# Function to recursively get all projects in a group (including subgroups)
+def get_all_projects_in_group(group_id):
+    projects = []
+    page = 1
+    per_page = 100
+
+    # Fetch projects in the group
+    while True:
+        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/projects', headers=headers, params={'per_page': per_page, 'page': page})
+        if response.status_code == 200:
+            projects_in_group = response.json()
+            if not projects_in_group:
+                break
+            projects.extend(projects_in_group)
+            page += 1
+        else:
+            print(f"Error fetching projects for group ID: {group_id}, Status Code: {response.status_code}")
+            return projects
+
+    # Fetch subgroups
+    page = 1
+    while True:
+        response = requests.get(f'{GITLAB_URL}/groups/{group_id}/subgroups', headers=headers, params={'per_page': per_page, 'page': page})
+        if response.status_code == 200:
+            subgroups = response.json()
+            if not subgroups:
+                break
+            for subgroup in subgroups:
+                projects.extend(get_all_projects_in_group(subgroup['id']))
+            page += 1
+        else:
+            print(f"Error fetching subgroups for group ID: {group_id}, Status Code: {response.status_code}")
+            break
+    return projects
+
+# Function to get all branches of a project
+def get_all_branches(project_id):
+    response = requests.get(f'{GITLAB_URL}/projects/{project_id}/repository/branches', headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Error fetching branches for project ID: {project_id}, Status Code: {response.status_code}")
+        return []
+
+# Function to check if a branch has a CI/CD pipeline
+def check_cicd_pipeline(project_id, branch_name):
+    response = requests.get(f'{GITLAB_URL}/projects/{project_id}/pipelines', headers=headers, params={'ref': branch_name})
+    if response.status_code == 200:
+        pipelines = response.json()
+        if len(pipelines) > 0:
+            return "Yes"
+        else:
+            return "No"
+    else:
+        print(f"Error checking pipelines for project ID: {project_id}, Status Code: {response.status_code}")
+        return "No"
+
+# Function to get the last commit date of a branch
+def get_last_commit_date(project_id, branch_name):
+    response = requests.get(f'{GITLAB_URL}/projects/{project_id}/repository/commits', headers=headers, params={'ref_name': branch_name, 'per_page': 1})
+    if response.status_code == 200:
+        commits = response.json()
+        if commits:
+            return commits[0]['created_at']
+    return None
+
+# Write the data to a CSV file
+def write_to_csv(projects_data, filename='projects_with_cicd.csv'):
+    with open(filename, 'w', newline='') as csvfile:
+        fieldnames = ['Project Name', 'Project Path', 'Branch Name', 'Has CI/CD Pipeline', 'Last Commit Date']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for project in projects_data:
+            writer.writerow({
+                'Project Name': project['name'],
+                'Project Path': project['path_with_namespace'],
+                'Branch Name': project['branch_name'],
+                'Has CI/CD Pipeline': project['has_cicd'],
+                'Last Commit Date': project['last_commit']
+            })
+
+# Main function
+def main():
+    print("Fetching all projects and subgroups recursively...")
+    projects = get_all_projects_in_group(PARENT_GROUP_ID)
+    projects_data = []
+
+    if not projects:
+        print("No projects found.")
+        return
+
+    print(f"Found {len(projects)} projects.")
+
+    # Process each project
+    for project in projects:
+        print(f"Processing project: {project['name']} (ID: {project['id']})")
+        branches = get_all_branches(project['id'])
+        
+        most_recent_commit = None
+        most_recent_branch = None
+        cicd_status = "No"
+
+        for branch in branches:
+            branch_name = branch['name']
+            print(f"Checking branch: {branch_name}")
+            
+            # Get last commit date for the branch
+            last_commit = get_last_commit_date(project['id'], branch_name)
+            
+            if last_commit:
+                if most_recent_commit is None or last_commit > most_recent_commit:
+                    most_recent_commit = last_commit
+                    most_recent_branch = branch_name
+
+            # Check for CI/CD pipeline in the branch
+            cicd_in_branch = check_cicd_pipeline(project['id'], branch_name)
+            if cicd_in_branch == "Yes":
+                cicd_status = "Yes"
+        
+        if most_recent_commit and most_recent_branch:
+            projects_data.append({
+                'name': project['name'],
+                'path_with_namespace': project['path_with_namespace'],
+                'branch_name': most_recent_branch,
+                'has_cicd': cicd_status,
+                'last_commit': most_recent_commit
+            })
+
+    # Write the data to a CSV file
+    write_to_csv(projects_data)
+    print(f"Data written to 'projects_with_cicd.csv'")
+
+if __name__ == '__main__':
+    main()

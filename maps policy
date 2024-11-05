@@ -1,0 +1,27 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "geo:SearchPlaceIndexForText",
+        "geo:SearchPlaceIndexForPosition",
+        "geo:ListPlaceIndexes",
+        "geo:ListGeofenceCollections",
+        "geo:GetGeofence",
+        "geo:ListMaps",
+        "geo:GetMapGlyphs",
+        "geo:GetMapSprites",
+        "geo:GetMapStyleDescriptor",
+        "geo:GetMapTile",
+        "geo:ListRouteCalculators",
+        "geo:CalculateRoute",
+        "geo:ListTrackers",
+        "geo:GetDevicePosition",
+        "geo:GetDevicePositionHistory",
+        "geo:BatchGetDevicePosition"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

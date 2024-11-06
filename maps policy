@@ -34,10 +34,9 @@
   "Statement": [
     {
       "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::YOUR_ACCOUNT_ID:user/YOUR_USER_NAME"
-      },
-      "Action": "sts:AssumeRole"
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::YOUR_ACCOUNT_ID:role/YOUR_ROLE_NAME"
     }
   ]
 }
+

@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Replace with your GitHub token and username/organization
+TOKEN="YOUR_GITHUB_TOKEN"
+ORG="<organization-or-username>"
+
+# Initialize page number
+PAGE=1
+
+# Loop until no more repositories are returned
+while true; do
+  # Fetch repositories for the current page
+  RESPONSE=$(curl -s -H "Authorization: token $TOKEN" \
+    "https://api.github.com/orgs/$ORG/repos?per_page=100&page=$PAGE" | \
+    jq '.[] | select(.name | startswith("eda-")) | .name')
+
+  # Break loop if no more repositories are found
+  if [[ -z "$RESPONSE" ]]; then
+    break
+  fi
+
+  # Output the repository names
+  echo "$RESPONSE"
+
+  # Increment page number
+  ((PAGE++))
+done

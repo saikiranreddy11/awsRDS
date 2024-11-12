@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Replace with your GitHub token and username/organization
+# Replace with your GitHub token and organization/username
 TOKEN="YOUR_GITHUB_TOKEN"
 ORG="<organization-or-username>"
 
@@ -9,18 +9,24 @@ PAGE=1
 
 # Loop until no more repositories are returned
 while true; do
+  echo "Fetching page $PAGE..."
+
   # Fetch repositories for the current page
   RESPONSE=$(curl -s -H "Authorization: token $TOKEN" \
-    "https://api.github.com/orgs/$ORG/repos?per_page=100&page=$PAGE" | \
-    jq '.[] | select(.name | startswith("eda-")) | .name')
+    "https://api.github.com/orgs/$ORG/repos?per_page=100&page=$PAGE")
 
-  # Break loop if no more repositories are found
-  if [[ -z "$RESPONSE" ]]; then
+  # Check if the response is empty or not valid JSON
+  if [[ -z "$RESPONSE" || "$RESPONSE" == "[]" ]]; then
+    echo "No more repositories found or empty response."
     break
   fi
 
-  # Output the repository names
-  echo "$RESPONSE"
+  # Print the number of repositories found in this page for debugging
+  REPO_COUNT=$(echo "$RESPONSE" | jq '. | length')
+  echo "Repositories found on page $PAGE: $REPO_COUNT"
+
+  # Filter and print repository names that start with "eda-"
+  echo "$RESPONSE" | jq -r '.[] | select(.name | startswith("eda-")) | .name'
 
   # Increment page number
   ((PAGE++))

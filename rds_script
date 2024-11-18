@@ -38,3 +38,6 @@ echo "Data insertion completed."
 curl -O https://ip-ranges.amazonaws.com/ip-ranges.json
 jq -r '.prefixes[] | select(.service == "S3" and .region == "us-east-1") | .ip_prefix' ip-ranges.json
 
+
+https://dgx-edap-use1-dev-qdib-landing-s3.s3.us-east-1.amazonaws.com
+

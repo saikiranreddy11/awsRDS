@@ -1,33 +1,39 @@
 #!/bin/bash
 
 # Replace with your GitHub token and organization/username
-TOKEN="YOUR_GITHUB_TOKEN"
-ORG="<organization-or-username>"
+TOKEN="ghp_1fMbwtyTeKGomsCXiENbRDFDOMtkCRoUkx0D"
+ORG="QDXEnterpriseOrg"
 
 # Initialize page number
 PAGE=1
 
 # Loop until no more repositories are returned
 while true; do
-  echo "Fetching page $PAGE..."
+    echo "Fetching page $PAGE..."
 
-  # Fetch repositories for the current page
-  RESPONSE=$(curl -s -H "Authorization: token $TOKEN" \
-    "https://api.github.com/orgs/$ORG/repos?per_page=100&page=$PAGE")
+    # Fetch repositories for the current page
+    RESPONSE=$(curl -s -H "Authorization: token $TOKEN" \
+        "https://api.github.com/orgs/$ORG/repos?per_page=100&page=$PAGE")
 
-  # Check if the response is empty or not valid JSON
-  if [[ -z "$RESPONSE" || "$RESPONSE" == "[]" ]]; then
-    echo "No more repositories found or empty response."
-    break
-  fi
+    # Check if the response is empty or not valid JSON
+    if [[ -z "$RESPONSE" || "$RESPONSE" == "[]" ]]; then
+        echo "No more repositories found or empty response."
+        break
+    fi
 
-  # Print the number of repositories found in this page for debugging
-  REPO_COUNT=$(echo "$RESPONSE" | jq '. | length')
-  echo "Repositories found on page $PAGE: $REPO_COUNT"
+    # Print the number of repositories found in this page for debugging
+    REPO_COUNT=$(echo "$RESPONSE" | jq '. | length')
+    echo "Repositories found on page $PAGE: $REPO_COUNT"
 
-  # Filter and print repository names that start with "eda-"
-  echo "$RESPONSE" | jq -r '.[] | select(.name | startswith("eda-")) | .name'
+    # Filter and print repository names that start with "eda-"
+    echo "$RESPONSE" | jq -r '.[] | select(.name | startswith("eda-")) | .name'
 
-  # Increment page number
-  ((PAGE++))
+    # Check if the response length is less than 100 (indicating no more pages)
+    if [[ $REPO_COUNT -lt 100 ]]; then
+        echo "Fetched the last page of repositories."
+        break
+    fi
+
+    # Increment page number
+    ((PAGE++))
 done

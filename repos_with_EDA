@@ -37,3 +37,10 @@ while true; do
     # Increment page number
     ((PAGE++))
 done
+
+
+
+Compare-Object (Get-Content file1.txt) (Get-Content file2.txt) -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="} | ForEach-Object { $_.InputObject }
+
+
+Compare-Object (Get-Content file1.txt) (Get-Content file2.txt) | Where-Object {$_.SideIndicator -ne "=="} | ForEach-Object { $_.InputObject }

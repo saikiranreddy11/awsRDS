@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Replace with your GitHub token and organization/username
+# Replace with your GitHub token and organization name
 TOKEN="ghp_IfMbwtyTeKGomsCXiEbNBRDFOMtkCRoUxk0D"
 ORG="QDXEnterpriseOrg"
 
@@ -14,7 +14,7 @@ while true; do
   # Fetch repositories for the current page
   RESPONSE=$(curl -s -H "Authorization: token $TOKEN" \
     "https://api.github.com/orgs/$ORG/repos?per_page=100&page=$PAGE")
-  
+
   # Check if the response is valid JSON
   if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
     echo "Error: Response is not valid JSON or API error."
@@ -28,14 +28,18 @@ while true; do
     break
   fi
 
-  # Print the number of repositories found on this page
+  # Filter and print repository names that start with "dso-htasdatagroup-"
+  MATCHING_REPOS=$(echo "$RESPONSE" | jq -r '.[] | select(.name | startswith("dso-htasdatagroup-")) | .name')
+  
+  if [[ -n "$MATCHING_REPOS" ]]; then
+    echo "Repositories matching 'dso-htasdatagroup-' on page $PAGE:"
+    echo "$MATCHING_REPOS"
+  else
+    echo "No repositories matching 'dso-htasdatagroup-' found on page $PAGE."
+  fi
+
+  # Check if the number of repositories returned is less than 100
   REPO_COUNT=$(echo "$RESPONSE" | jq '. | length')
-  echo "Repositories found on page $PAGE: $REPO_COUNT"
-
-  # Filter and print repository names that start with "eda-"
-  echo "$RESPONSE" | jq -r '.[] | select(.name | startswith("eda-")) | .name'
-
-  # Check if the response length is less than 100 (indicating no more pages)
   if [[ $REPO_COUNT -lt 100 ]]; then
     echo "Fetched the last page of repositories."
     break

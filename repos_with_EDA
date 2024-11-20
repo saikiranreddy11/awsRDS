@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Replace with your GitHub token and organization/username
-TOKEN="ghp_1fMbwtyTeKGomsCXiENbRDFDOMtkCRoUkx0D"
+TOKEN="ghp_IfMbwtyTeKGomsCXiEbNBRDFOMtkCRoUxk0D"
 ORG="QDXEnterpriseOrg"
 
 # Initialize page number
@@ -9,38 +9,38 @@ PAGE=1
 
 # Loop until no more repositories are returned
 while true; do
-    echo "Fetching page $PAGE..."
+  echo "Fetching page $PAGE..."
 
-    # Fetch repositories for the current page
-    RESPONSE=$(curl -s -H "Authorization: token $TOKEN" \
-        "https://api.github.com/orgs/$ORG/repos?per_page=100&page=$PAGE")
+  # Fetch repositories for the current page
+  RESPONSE=$(curl -s -H "Authorization: token $TOKEN" \
+    "https://api.github.com/orgs/$ORG/repos?per_page=100&page=$PAGE")
+  
+  # Check if the response is valid JSON
+  if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
+    echo "Error: Response is not valid JSON or API error."
+    echo "Response: $RESPONSE"
+    break
+  fi
 
-    # Check if the response is empty or not valid JSON
-    if [[ -z "$RESPONSE" || "$RESPONSE" == "[]" ]]; then
-        echo "No more repositories found or empty response."
-        break
-    fi
+  # Check if the response is empty
+  if [[ -z "$RESPONSE" || "$RESPONSE" == "[]" ]]; then
+    echo "No more repositories found or empty response."
+    break
+  fi
 
-    # Print the number of repositories found in this page for debugging
-    REPO_COUNT=$(echo "$RESPONSE" | jq '. | length')
-    echo "Repositories found on page $PAGE: $REPO_COUNT"
+  # Print the number of repositories found on this page
+  REPO_COUNT=$(echo "$RESPONSE" | jq '. | length')
+  echo "Repositories found on page $PAGE: $REPO_COUNT"
 
-    # Filter and print repository names that start with "eda-"
-    echo "$RESPONSE" | jq -r '.[] | select(.name | startswith("eda-")) | .name'
+  # Filter and print repository names that start with "eda-"
+  echo "$RESPONSE" | jq -r '.[] | select(.name | startswith("eda-")) | .name'
 
-    # Check if the response length is less than 100 (indicating no more pages)
-    if [[ $REPO_COUNT -lt 100 ]]; then
-        echo "Fetched the last page of repositories."
-        break
-    fi
+  # Check if the response length is less than 100 (indicating no more pages)
+  if [[ $REPO_COUNT -lt 100 ]]; then
+    echo "Fetched the last page of repositories."
+    break
+  fi
 
-    # Increment page number
-    ((PAGE++))
+  # Increment page number
+  ((PAGE++))
 done
-
-
-
-Compare-Object (Get-Content file1.txt) (Get-Content file2.txt) -IncludeEqual | Where-Object {$_.SideIndicator -eq "=="} | ForEach-Object { $_.InputObject }
-
-
-Compare-Object (Get-Content file1.txt) (Get-Content file2.txt) | Where-Object {$_.SideIndicator -ne "=="} | ForEach-Object { $_.InputObject }

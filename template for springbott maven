@@ -1,7 +1,6 @@
-- name: Print GitHub Variables
-  run: |
-    echo "Repository Owner: ${{ github.repository_owner }}"
-    echo "Repository Name: ${{ github.repository }}"
-    echo "GitHub Actor: ${{ github.actor }}"
-    echo "GitHub Ref: ${{ github.ref }}"
-    echo "GitHub SHA: ${{ github.sha }}"
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+</dependencies>

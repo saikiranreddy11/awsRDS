@@ -1,15 +1,74 @@
-package com.example.testapp;
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    
+    <modelVersion>4.0.0</modelVersion>
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.2</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
 
-@RestController
-@RequestMapping("/api")
-public class HelloController {
+    <groupId>com.qdx</groupId>
+    <artifactId>springboot-demo</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>springboot-demo</name>
+    <description>Sample Spring Boot project for QDX</description>
 
-    @GetMapping("/hello")
-    public String sayHello() {
-        return "Hello, World!";
-    }
-}
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+
+    <!-- ✅ Add MedPlus Artifactory Repository -->
+    <repositories>
+        <repository>
+            <id>Artifactory</id>
+            <name>MedPlus Artifactory</name>
+            <url>http://repo.dev.medplus.com/artifactory/public</url>
+        </repository>
+        <repository>
+            <id>ArtifactorySnapshots</id>
+            <name>MedPlus Artifactory Snapshots</name>
+            <url>http://repo.dev.medplus.com/artifactory/public-snapshots</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <!-- ✅ Spring Boot Web (for REST APIs) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- ✅ Spring Boot Test (for testing) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- ✅ Spring Boot Maven Plugin (for building & running) -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!-- ✅ Maven Compiler Plugin (to use Java 17) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

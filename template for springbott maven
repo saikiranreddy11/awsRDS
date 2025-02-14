@@ -1,15 +1,21 @@
-package com.qdx.springbootdemo;
+#!/bin/bash
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+# Define variables
+orgName="qdx"  # Change this dynamically
+projectName="template"  # Change this dynamically
 
-@RestController
-@RequestMapping("/api")
-public class HelloController {
+# Rename folder structure in src/main/java
+mv src/main/java/com/qdx src/main/java/com/$ORG_NAME
+mv src/main/java/com/$ORG_NAME/springbootdemo src/main/java/com/$ORG_NAME/$PROJECT_NAME
 
-    @GetMapping("/hello")
-    public String sayHello() {
-        return "Hello, QDX!";
-    }
-}
+# Rename folder structure in src/test/java
+mv src/test/java/com/qdx src/test/java/com/$ORG_NAME
+mv src/test/java/com/$ORG_NAME/springbootdemo src/test/java/com/$ORG_NAME/$PROJECT_NAME
+
+# Update package names inside Java files in src/main/java
+find src/main/java/com/$ORG_NAME/$PROJECT_NAME -type f -name "*.java" -exec sed -i "s/package com.qdx.springbootdemo/package com.$ORG_NAME.$PROJECT_NAME/g" {} \;
+
+# Update package names inside Java files in src/test/java
+find src/test/java/com/$ORG_NAME/$PROJECT_NAME -type f -name "*.java" -exec sed -i "s/package com.qdx.springbootdemo/package com.$ORG_NAME.$PROJECT_NAME/g" {} \;
+
+echo "Folder structure and package names updated successfully."

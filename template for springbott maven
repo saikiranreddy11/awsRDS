@@ -1,27 +1,67 @@
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Principal": {
-                "Federated": "arn:aws:iam::202523371796:oidc-provider/token.actions.githubusercontent.com"
-            },
-            "Action": "sts:AssumeRoleWithWebIdentity",
-            "Condition": {
-                "StringEquals": {
-                    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-                },
-                "StringLike": {
-                    "token.actions.githubusercontent.com:sub": "repo:QDXEnterpriseOrg/*"
-                }
-            }
-        },
-        {
-            "Effect": "Allow",
-            "Principal": {
-                "Federated": "arn:aws:iam::202523371796:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/797705279D94A7855A9284390644258"
-            },
-            "Action": "sts:AssumeRoleWithWebIdentity"
-        }
-    ]
-}
+name: Deploy to Kubernetes using Helm
+
+on:
+  workflow_dispatch: # Manually triggered from GitHub UI
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    runs-on: arc-rs-nonprod
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::202523371796:role/iam-role-lk-github-oidc-test
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Set up kubectl
+        run: |
+          aws sts get-caller-identity
+          aws eks update-kubeconfig --name devops-eks-al2023 --region us-east-1
+          aws sts get-caller-identity
+          kubectl cluster-info dump
+          kubectl config view
+          kubectl get nodes
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.12.0 # Specify the Helm version
+
+      - name: Fetch Latest Image Tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fetching latest image tag..."
+          RESPONSE=$(gh api repos/QDXEnterpriseOrg/test-springboot-maven-template/actions/runs)
+          echo "API Response: $RESPONSE"
+          
+          IMAGE_TAG=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].head_sha')
+          echo "Extracted IMAGE_TAG=$IMAGE_TAG"
+          
+          if [[ -z "$IMAGE_TAG" || "$IMAGE_TAG" == "null" ]]; then
+            echo "Error: IMAGE_TAG is empty or invalid"
+            exit 1
+          fi
+          
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Deploy to Kubernetes using Helm
+        run: |
+          echo "Deploying image: 202523371796.dkr.ecr.us-east-1.amazonaws.com/github-template/springbootmaven:$IMAGE_TAG"
+          
+          helm upgrade --install springboot-template-chart ./charts \
+            --namespace default \
+            --set image.tag="$IMAGE_TAG" \
+            --set image.repository=202523371796.dkr.ecr.us-east-1.amazonaws.com/github-template/springbootmaven

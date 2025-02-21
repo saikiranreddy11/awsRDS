@@ -1,27 +1,13 @@
-replicaCount: 2
-
-image:
-  repository: 202523371796.dkr.ecr.us-east-1.amazonaws.com/github-template/springbootmaven
-  tag: latest
-  pullPolicy: IfNotPresent
-
-service:
-  type: ClusterIP
-  port: 8080
-
-ingress:
-  enabled: false
-
-resources:
-  limits:
-    cpu: 500m
-    memory: 512Mi
-  requests:
-    cpu: 250m
-    memory: 256Mi
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}

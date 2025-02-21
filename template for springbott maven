@@ -1,6 +1,42 @@
-apiVersion: v2
-name: springboot-template-chart
-description: A Helm chart for deploying the Spring Boot Template application
-type: application
-version: 1.0.0
-appVersion: "1.0.0"
+name: Deploy to Kubernetes using Helm
+
+on:
+  workflow_dispatch:  # Manually triggered from GitHub UI
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: arc-rs-nonprod
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/YOUR_K8S_DEPLOY_ROLE
+          aws-region: us-east-1
+
+      - name: Set up kubectl
+        run: |
+          aws eks update-kubeconfig --name YOUR_CLUSTER_NAME --region us-east-1
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3  # Using an action to install Helm
+        with:
+          version: v3.12.0  # Specify the Helm version
+
+      - name: Fetch Latest Image Tag
+        run: |
+          IMAGE_TAG=$(gh api repos/{owner}/{repo}/actions/runs --jq '.workflow_runs[0].head_sha' | cut -c1-7)
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Deploy to Kubernetes using Helm
+        run: |
+          helm upgrade --install my-app ./helm-chart \
+            --namespace my-namespace \
+            --set image.tag=${{ env.IMAGE_TAG }} \
+            --set image.repository=202523371796.dkr.ecr.us-east-1.amazonaws.com/github-template/springbootmaven

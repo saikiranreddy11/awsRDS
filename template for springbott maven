@@ -1,21 +1,23 @@
-#!/bin/bash
-
-# Define variables
-orgName="qdx"  # Change this dynamically
-projectName="template"  # Change this dynamically
-
-# Rename folder structure in src/main/java
-mv src/main/java/com/qdx src/main/java/com/$ORG_NAME
-mv src/main/java/com/$ORG_NAME/springbootdemo src/main/java/com/$ORG_NAME/$PROJECT_NAME
-
-# Rename folder structure in src/test/java
-mv src/test/java/com/qdx src/test/java/com/$ORG_NAME
-mv src/test/java/com/$ORG_NAME/springbootdemo src/test/java/com/$ORG_NAME/$PROJECT_NAME
-
-# Update package names inside Java files in src/main/java
-find src/main/java/com/$ORG_NAME/$PROJECT_NAME -type f -name "*.java" -exec sed -i "s/package com.qdx.springbootdemo/package com.$ORG_NAME.$PROJECT_NAME/g" {} \;
-
-# Update package names inside Java files in src/test/java
-find src/test/java/com/$ORG_NAME/$PROJECT_NAME -type f -name "*.java" -exec sed -i "s/package com.qdx.springbootdemo/package com.$ORG_NAME.$PROJECT_NAME/g" {} \;
-
-echo "Folder structure and package names updated successfully."
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"

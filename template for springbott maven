@@ -12,19 +12,24 @@ jobs:
   deploy:
     runs-on: arc-rs-nonprod
     steps:
+    
+      # Checkout Code
       - name: Checkout Code
         uses: actions/checkout@v2
 
+      # Configure AWS credentials using OIDC
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: arn:aws:iam::202523371796:role/iam-role-lk-github-oidc-test
           aws-region: us-east-1
 
+      # Login to Amazon ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
+      # Setup kubectl and update kubeconfig
       - name: Set up kubectl
         run: |
           aws sts get-caller-identity
@@ -34,34 +39,30 @@ jobs:
           kubectl config view
           kubectl get nodes
 
+      # Install Helm
       - name: Set up Helm
         uses: azure/setup-helm@v3
         with:
-          version: v3.12.0 # Specify the Helm version
+          version: v3.12.0  # Specify the Helm version
 
-      - name: Fetch Latest Image Tag
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Fetch Latest Image Tag from Amazon ECR
+      - name: Fetch Latest Image from ECR
         run: |
-          echo "Fetching latest image tag..."
-          RESPONSE=$(gh api repos/QDXEnterpriseOrg/test-springboot-maven-template/actions/runs)
-          echo "API Response: $RESPONSE"
-          
-          IMAGE_TAG=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].head_sha')
-          echo "Extracted IMAGE_TAG=$IMAGE_TAG"
-          
-          if [[ -z "$IMAGE_TAG" || "$IMAGE_TAG" == "null" ]]; then
-            echo "Error: IMAGE_TAG is empty or invalid"
-            exit 1
-          fi
+          IMAGE_TAG=$(aws ecr describe-images \
+            --repository-name github-template/springbootmaven \
+            --region us-east-1 \
+            --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' \
+            --output text)
           
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          echo "Latest Image from ECR: $IMAGE_TAG"
 
+      # Deploy to Kubernetes using Helm
       - name: Deploy to Kubernetes using Helm
         run: |
           echo "Deploying image: 202523371796.dkr.ecr.us-east-1.amazonaws.com/github-template/springbootmaven:$IMAGE_TAG"
           
           helm upgrade --install springboot-template-chart ./charts \
             --namespace default \
-            --set image.tag="$IMAGE_TAG" \
+            --set image.tag=$IMAGE_TAG \
             --set image.repository=202523371796.dkr.ecr.us-east-1.amazonaws.com/github-template/springbootmaven

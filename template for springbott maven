@@ -1,14 +1,2 @@
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "*:Describe*",
-        "*:List*",
-        "*:Get*"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
+export GITHUB_TOKEN="your_new_token_here"
+curl -H "Authorization: token $GITHUB_TOKEN" -s https://api.github.com/repos/GoogleCloudPlatform/terraformer/releases/latest

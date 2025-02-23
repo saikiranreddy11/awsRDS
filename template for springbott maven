@@ -1,1 +1,1 @@
-curl -s https://api.github.com/repos/GoogleCloudPlatform/terraformer/releases/latest
+https://github.com/GoogleCloudPlatform/terraformer/releases/download/0.8.24/terraformer-aws-linux-amd64

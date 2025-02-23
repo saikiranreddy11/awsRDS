@@ -1,1 +1,2 @@
-https://github.com/GoogleCloudPlatform/terraformer/releases/download/0.8.24/terraformer-aws-linux-amd64
+export VERSION=0.8.24  # Update this to the latest version from your JSON output
+curl -LO "https://github.com/GoogleCloudPlatform/terraformer/releases/download/${VERSION}/terraformer-aws-linux-amd64"

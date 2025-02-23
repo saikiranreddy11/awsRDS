@@ -1,4 +1,11 @@
-export PROVIDER=aws
-curl -LO "https://github.com/GoogleCloudPlatform/terraformer/releases/latest/download/terraformer-${PROVIDER}-linux-amd64"
-chmod +x terraformer-${PROVIDER}-linux-amd64
-sudo mv terraformer-${PROVIDER}-linux-amd64 /usr/local/bin/terraformer
+echo '
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+' > versions.tf
+terraform init

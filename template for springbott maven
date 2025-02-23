@@ -1,4 +1,2 @@
-export VERSION=v0.8.23  # Update with the latest version
+export VERSION=0.8.24  # Update this to the latest version from your JSON output
 curl -LO "https://github.com/GoogleCloudPlatform/terraformer/releases/download/${VERSION}/terraformer-aws-linux-amd64"
-chmod +x terraformer-aws-linux-amd64
-sudo mv terraformer-aws-linux-amd64 /usr/local/bin/terraformer

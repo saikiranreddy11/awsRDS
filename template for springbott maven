@@ -1,2 +1,58 @@
-export VERSION=0.8.24  # Update this to the latest version from your JSON output
-curl -LO "https://github.com/GoogleCloudPlatform/terraformer/releases/download/${VERSION}/terraformer-aws-linux-amd64"
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ReadFileAccess",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::qdx-prism-terraform-state-prod/*",
+            "Condition": {
+                "ArnNotEquals": {
+                    "aws:PrincipalArn": [
+                        "arn:aws:iam::269453432194:role/CoreInfraDeployRoleProd",
+                        "arn:aws:iam::269453432194:role/PrismAppDeployRoleProd",
+                        "arn:aws:iam::269453432194:role/TerraformDeployRoleProd",
+                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AWSAdministratorAccess_f33be3941082156f",
+                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_dgxGlobalAdministrator_cc4ce03406a5f041",
+                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_dgxIgfDevSecOpsAdmin_7d0834d8534aa5e2"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "WriteFileAccess",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": [
+                "s3:PutObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": "arn:aws:s3:::qdx-prism-terraform-state-prod/*",
+            "Condition": {
+                "ArnNotEquals": {
+                    "aws:PrincipalArn": [
+                        "arn:aws:iam::269453432194:role/CoreInfraDeployRoleProd",
+                        "arn:aws:iam::269453432194:role/PrismAppDeployRoleProd",
+                        "arn:aws:iam::269453432194:role/TerraformDeployRoleProd",
+                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AWSAdministratorAccess_f33be3941082156f",
+                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_dgxGlobalAdministrator_cc4ce03406a5f041",
+                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_dgxIgfDevSecOpsAdmin_7d0834d8534aa5e2"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "ManageBucketPolicy",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AWSAdministratorAccess_f33be3941082156f"
+            },
+            "Action": [
+                "s3:PutBucketPolicy",
+                "s3:DeleteBucketPolicy"
+            ],
+            "Resource": "arn:aws:s3:::qdx-prism-terraform-state-prod"
+        }
+    ]
+}

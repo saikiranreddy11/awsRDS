@@ -1,7 +1,41 @@
 module "acm" {
-  source        = "./modules/acm"
-  domain_name   = "prism.prd.aws.qdx.com"
-  san_names     = ["*.prism.prd.aws.qdx.com"]
-  hosted_zone_id = "Z063578637WWA8CTAOZDX" # Replace with your actual Hosted Zone ID
-  environment   = "production"
+  source         = "./modules/acm"
+  domain_name    = var.domain_name
+  san_names      = var.san_names
+  hosted_zone_id = var.hosted_zone_id
+  environment    = var.environment
 }
+
+
+
+
+
+
+variable "domain_name" {
+  description = "The primary domain name for the ACM certificate"
+  type        = string
+}
+
+variable "san_names" {
+  description = "A list of Subject Alternative Names (SANs) for the certificate"
+  type        = list(string)
+  default     = []
+}
+
+variable "hosted_zone_id" {
+  description = "The Route 53 hosted zone ID for domain validation"
+  type        = string
+}
+
+variable "environment" {
+  description = "The environment name (e.g., production, staging, dev)"
+  type        = string
+}
+
+
+
+
+domain_name    = "prism.prd.aws.qdx.com"
+san_names      = ["*.prism.prd.aws.qdx.com"]
+hosted_zone_id = "Z063578637WWA8CTAOZDX"
+environment    = "production"

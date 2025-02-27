@@ -8,15 +8,18 @@ resource "aws_acm_certificate" "app_cert" {
   }
 }
 
-# Null resource to ensure ACM Certificate is created before fetching validation options
-resource "null_resource" "wait_for_acm" {
+# Use a data source to fetch the domain validation options AFTER the certificate is created
+data "aws_acm_certificate" "app_cert_data" {
+  domain   = var.domain_name
+  statuses = ["PENDING_VALIDATION"]
+
   depends_on = [aws_acm_certificate.app_cert]
 }
 
 # Create Route 53 DNS validation records dynamically, ensuring no duplicates
 resource "aws_route53_record" "app_cert_validation" {
   for_each = {
-    for dvo in aws_acm_certificate.app_cert.domain_validation_options :
+    for dvo in data.aws_acm_certificate.app_cert_data.domain_validation_options :
     dvo.resource_record_name => dvo if dvo.resource_record_name != ""
   }
 
@@ -29,8 +32,6 @@ resource "aws_route53_record" "app_cert_validation" {
   lifecycle {
     ignore_changes = [records]
   }
-
-  depends_on = [null_resource.wait_for_acm]
 }
 
 # Validate the certificate once DNS records are created

@@ -1,41 +1,30 @@
-module "acm" {
-  source         = "./modules/acm"
-  domain_name    = var.domain_name
-  san_names      = var.san_names
-  hosted_zone_id = var.hosted_zone_id
-  environment    = var.environment
+resource "aws_acm_certificate" "app_cert" {
+  domain_name               = var.domain_name
+  validation_method         = "DNS"
+  subject_alternative_names = var.san_names
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
+# Create Route 53 DNS validation records dynamically, ensuring no duplicates
+resource "aws_route53_record" "app_cert_validation" {
+  for_each = { for dvo in aws_acm_certificate.app_cert.domain_validation_options : dvo.resource_record_name => dvo if dvo.resource_record_name != "" }
 
+  zone_id = var.hosted_zone_id
+  name    = each.value.resource_record_name
+  type    = each.value.resource_record_type
+  records = [each.value.resource_record_value]
+  ttl     = 60
 
-
-
-
-variable "domain_name" {
-  description = "The primary domain name for the ACM certificate"
-  type        = string
+  lifecycle {
+    ignore_changes = [records]
+  }
 }
 
-variable "san_names" {
-  description = "A list of Subject Alternative Names (SANs) for the certificate"
-  type        = list(string)
-  default     = []
+# Validate the certificate once DNS records are created
+resource "aws_acm_certificate_validation" "app_cert" {
+  certificate_arn         = aws_acm_certificate.app_cert.arn
+  validation_record_fqdns = [for record in aws_route53_record.app_cert_validation : record.fqdn]
 }
-
-variable "hosted_zone_id" {
-  description = "The Route 53 hosted zone ID for domain validation"
-  type        = string
-}
-
-variable "environment" {
-  description = "The environment name (e.g., production, staging, dev)"
-  type        = string
-}
-
-
-
-
-domain_name    = "prism.prd.aws.qdx.com"
-san_names      = ["*.prism.prd.aws.qdx.com"]
-hosted_zone_id = "Z063578637WWA8CTAOZDX"
-environment    = "production"

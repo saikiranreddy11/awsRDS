@@ -1,4 +1,6 @@
-output "ecs_service_sg_id" {
-  description = "The ID of the ECS service security group"
-  value       = module.ecs_sg.ecs_service_sg_id
+locals {
+  vpc_id         = data.terraform_remote_state.network.outputs.vpc_id
+  subnets        = data.terraform_remote_state.network.outputs.app_subnet_ids
+  security_groups = [data.terraform_remote_state.network.outputs.ecs_service_sg_id]
+  hosted_zone_id = data.terraform_remote_state.network.outputs.route53_zone_zone_id
 }

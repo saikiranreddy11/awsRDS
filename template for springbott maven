@@ -1,20 +1,4 @@
-variable "domain_name" {
-  description = "The primary domain name for the ACM certificate"
-  type        = string
-}
-
-variable "san_names" {
-  description = "A list of Subject Alternative Names (SANs) for the certificate"
-  type        = list(string)
-  default     = []
-}
-
-variable "hosted_zone_id" {
-  description = "Route 53 Hosted Zone ID for DNS validation"
-  type        = string
-}
-
-variable "environment" {
-  description = "Environment tag (e.g., dev, prod)"
-  type        = string
+output "certificate_arn" {
+  description = "The ARN of the ACM certificate"
+  value       = aws_acm_certificate_validation.app_cert.certificate_arn
 }

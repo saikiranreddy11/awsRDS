@@ -1,29 +1,29 @@
 output "vpc_id" {
-  description = "The ID of the created VPC"
-  value       = aws_vpc.vpc.id
+  description = "The VPC ID"
+  value       = module.vpc.vpc_id
 }
 
 output "vpce_sg_id" {
-  description = "The security group ID of the VPC endpoint"
-  value       = aws_security_group.vpce_sg.id
+  description = "Security group ID for the VPC endpoint"
+  value       = module.vpc.vpce_sg_id
 }
 
 output "app_subnet_ids" {
-  description = "App subnet IDs"
-  value       = aws_subnet.app_subnets[*].id
+  description = "List of application subnet IDs"
+  value       = module.vpc.app_subnet_ids
 }
 
 output "route53_zone_zone_id" {
   description = "Route53 zone ID"
-  value       = aws_route53_zone.this.zone_id
+  value       = module.vpc.route53_zone_zone_id
 }
 
 output "route53_zone_zone_arn" {
   description = "Route53 zone ARN"
-  value       = aws_route53_zone.this.arn
+  value       = module.vpc.route53_zone_zone_arn
 }
 
 output "route53_zone_name_servers" {
   description = "Route53 zone name servers"
-  value       = aws_route53_zone.this.name_servers
+  value       = module.vpc.route53_zone_name_servers
 }

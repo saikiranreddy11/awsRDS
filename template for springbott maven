@@ -1,29 +1,54 @@
 output "vpc_id" {
-  description = "The VPC ID"
+  description = "The ID of the VPC generated"
   value       = module.vpc.vpc_id
 }
 
 output "vpce_sg_id" {
-  description = "Security group ID for the VPC endpoint"
+  description = "The security group ID of the VPC endpoint"
   value       = module.vpc.vpce_sg_id
 }
 
 output "app_subnet_ids" {
-  description = "List of application subnet IDs"
+  description = "App subnet IDs"
   value       = module.vpc.app_subnet_ids
 }
 
 output "route53_zone_zone_id" {
-  description = "Route53 zone ID"
+  description = "Zone ID of Route53 zone"
   value       = module.vpc.route53_zone_zone_id
 }
 
 output "route53_zone_zone_arn" {
-  description = "Route53 zone ARN"
+  description = "Zone ARN of Route53 zone"
   value       = module.vpc.route53_zone_zone_arn
 }
 
 output "route53_zone_name_servers" {
-  description = "Route53 zone name servers"
+  description = "Name servers of Route53 zone"
   value       = module.vpc.route53_zone_name_servers
+}
+
+output "route53_zone_name" {
+  description = "Name of Route53 zone"
+  value       = module.vpc.route53_zone_name
+}
+
+output "route53_resolver_rule_association_id" {
+  description = "ID of Route53 Resolver rule associations"
+  value       = module.vpc.route53_resolver_rule_association_id
+}
+
+output "route53_resolver_rule_association_name" {
+  description = "Name of Route53 Resolver rule associations"
+  value       = module.vpc.route53_resolver_rule_association_name
+}
+
+output "route53_resolver_rule_association_resolver_rule_id" {
+  description = "ID of Route53 Resolver rule associations resolver rule"
+  value       = module.vpc.route53_resolver_rule_association_resolver_rule_id
+}
+
+output "ASK_A_CLOUD_ADMIN" {
+  description = "Command to enable the DNS zone"
+  value       = module.vpc.ASK_A_CLOUD_ADMIN
 }

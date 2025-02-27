@@ -1,17 +1,4 @@
-data "terraform_remote_state" "network" {
-  backend = "s3"
-
-  config = {
-    bucket         = "dgx-prism-usel-dev-tfstate-s3"   # S3 bucket from backend config
-    key            = "vpc/dgx-prism-usel-prd-tfstate-vpc.tfstate"  # Path to network state file
-    region         = "us-east-1"
-    dynamodb_table = "dgx-prism-usel-dev-tf-dynamodb" # Locking table from backend config
-  }
+output "ecs_service_sg_id" {
+  description = "The ID of the ECS service security group"
+  value       = aws_security_group.ecs_service_sg.id
 }
-
-vpc_id         = data.terraform_remote_state.network.outputs.vpc_id
-alb_name       = "dgx-prism-usel-prd-alb"
-subnets        = data.terraform_remote_state.network.outputs.app_subnet_ids
-security_groups = [data.terraform_remote_state.network.outputs.vpce_sg_id]
-hosted_zone_id = data.terraform_remote_state.network.outputs.route53_zone_zone_id
-dns_name       = "app-test.prism.prd.aws.qdx.com"

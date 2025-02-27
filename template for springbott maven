@@ -1,3 +1,4 @@
+# 1. Request an ACM certificate with DNS validation
 resource "aws_acm_certificate" "app_cert" {
   domain_name               = var.domain_name
   validation_method         = "DNS"
@@ -8,18 +9,10 @@ resource "aws_acm_certificate" "app_cert" {
   }
 }
 
-# Use a data source to fetch the domain validation options AFTER the certificate is created
-data "aws_acm_certificate" "app_cert_data" {
-  domain   = var.domain_name
-  statuses = ["PENDING_VALIDATION"]
-
-  depends_on = [aws_acm_certificate.app_cert]
-}
-
-# Create Route 53 DNS validation records dynamically, ensuring no duplicates
+# 2. Create Route 53 DNS validation records dynamically, avoiding duplicates
 resource "aws_route53_record" "app_cert_validation" {
   for_each = {
-    for dvo in data.aws_acm_certificate.app_cert_data.domain_validation_options :
+    for dvo in aws_acm_certificate.app_cert.domain_validation_options :
     dvo.resource_record_name => dvo if dvo.resource_record_name != ""
   }
 
@@ -34,7 +27,7 @@ resource "aws_route53_record" "app_cert_validation" {
   }
 }
 
-# Validate the certificate once DNS records are created
+# 3. Validate the ACM certificate once DNS records are created
 resource "aws_acm_certificate_validation" "app_cert" {
   certificate_arn         = aws_acm_certificate.app_cert.arn
   validation_record_fqdns = [for record in aws_route53_record.app_cert_validation : record.fqdn]

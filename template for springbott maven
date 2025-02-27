@@ -1,32 +1,45 @@
+locals {
+  # Use this flag to ensure certificate creation only when required
+  create_certificate = var.create_certificate
+
+  # Extract domain validation options safely after ACM certificate creation
+  validation_domains = local.create_certificate ? [
+    for dvo in aws_acm_certificate.app_cert.domain_validation_options :
+    merge(dvo, { domain_name = replace(dvo.domain_name, "*.", "") })
+  ] : []
+}
+
+
 resource "aws_acm_certificate" "app_cert" {
+  count = local.create_certificate ? 1 : 0
+
   domain_name               = var.domain_name
   validation_method         = "DNS"
   subject_alternative_names = var.san_names
+  key_algorithm             = "RSA_2048"
+
+  options {
+    certificate_transparency_logging_preference = "ENABLED"
+  }
 
   lifecycle {
     create_before_destroy = true
   }
 }
 
-locals {
-  domain_validation_records = {
-    for dvo in aws_acm_certificate.app_cert.domain_validation_options :
-    dvo.resource_record_name => {
-      name   = dvo.resource_record_name
-      type   = dvo.resource_record_type
-      record = dvo.resource_record_value
-    } if dvo.resource_record_name != ""
-  }
-}
 
 resource "aws_route53_record" "app_cert_validation" {
-  for_each = local.domain_validation_records
+  for_each = { for dvo in local.validation_domains :
+    dvo.resource_record_name => dvo if dvo.resource_record_name != ""
+  }
 
   zone_id = var.hosted_zone_id
-  name    = each.value.name
-  type    = each.value.type
-  records = [each.value.record]
+  name    = each.value.resource_record_name
+  type    = each.value.resource_record_type
   ttl     = 60
+  records = [each.value.resource_record_value]
+
+  allow_overwrite = true
 
   lifecycle {
     ignore_changes = [records]
@@ -35,9 +48,139 @@ resource "aws_route53_record" "app_cert_validation" {
   depends_on = [aws_acm_certificate.app_cert]
 }
 
+
 resource "aws_acm_certificate_validation" "app_cert" {
-  certificate_arn         = aws_acm_certificate.app_cert.arn
-  validation_record_fqdns = [for record in aws_route53_record.app_cert_validation : record.fqdn]
+  count = local.create_certificate ? 1 : 0
+
+  certificate_arn = aws_acm_certificate.app_cert[0].arn
+  validation_record_fqdns = [for record in aws_route53_record.app_cert_validation :
+    record.fqdn
+  ]
+
+  timeouts {
+    create = "5m"
+  }
 
   depends_on = [aws_route53_record.app_cert_validation]
+}
+
+
+
+module "acm" {
+  source = "./modules/acm"
+
+  domain_name   = "prism.prd.aws.qdx.com"
+  san_names     = ["*.prism.prd.aws.qdx.com"]
+  hosted_zone_id = "Z063578637WWA8CTAOZDX"
+
+  create_certificate = true
+  create_route53_records_only = false
+}
+
+
+
+
+variable "domain_name" {
+  description = "The primary domain name for the ACM certificate"
+  type        = string
+}
+
+variable "san_names" {
+  description = "Subject Alternative Names (SANs) for the ACM certificate"
+  type        = list(string)
+  default     = []
+}
+
+variable "hosted_zone_id" {
+  description = "The Route53 Hosted Zone ID where DNS validation records will be created"
+  type        = string
+}
+
+variable "create_certificate" {
+  description = "Flag to determine whether to create an ACM certificate"
+  type        = bool
+  default     = true
+}
+
+variable "create_route53_records_only" {
+  description = "If true, only Route53 records will be created (useful for manual ACM cert validation)"
+  type        = bool
+  default     = false
+}
+
+variable "dns_ttl" {
+  description = "TTL for Route53 validation records"
+  type        = number
+  default     = 60
+}
+
+variable "validation_method" {
+  description = "Method used to validate the ACM certificate"
+  type        = string
+  default     = "DNS"
+}
+
+variable "validate_certificate" {
+  description = "Whether to perform ACM certificate validation"
+  type        = bool
+  default     = true
+}
+
+variable "wait_for_validation" {
+  description = "Whether to wait for ACM certificate validation before proceeding"
+  type        = bool
+  default     = true
+}
+
+variable "tags" {
+  description = "Tags to assign to AWS resources"
+  type        = map(string)
+  default     = {
+    Name = "ACM Certificate"
+  }
+}
+
+
+
+
+
+output "certificate_arn" {
+  description = "The ARN of the ACM certificate"
+  value       = try(aws_acm_certificate.app_cert[0].arn, null)
+}
+
+output "certificate_status" {
+  description = "The status of the ACM certificate (e.g., PENDING_VALIDATION, ISSUED)"
+  value       = try(aws_acm_certificate.app_cert[0].status, null)
+}
+
+output "certificate_domain_name" {
+  description = "The domain name associated with the ACM certificate"
+  value       = try(aws_acm_certificate.app_cert[0].domain_name, null)
+}
+
+output "certificate_san_names" {
+  description = "List of Subject Alternative Names (SANs) associated with the ACM certificate"
+  value       = try(aws_acm_certificate.app_cert[0].subject_alternative_names, [])
+}
+
+output "certificate_validation_records" {
+  description = "The Route 53 DNS validation records required for ACM certificate validation"
+  value = try([
+    for record in aws_route53_record.validation : {
+      name  = record.name
+      type  = record.type
+      value = record.records
+    }
+  ], [])
+}
+
+output "route53_validation_status" {
+  description = "The status of Route 53 validation records"
+  value       = try(aws_acm_certificate_validation.this[0].id, null)
+}
+
+output "hosted_zone_id" {
+  description = "The Route 53 Hosted Zone ID used for validation"
+  value       = var.hosted_zone_id
 }

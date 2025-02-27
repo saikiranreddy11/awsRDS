@@ -1,4 +1,3 @@
-# 1. Request an ACM certificate with DNS validation
 resource "aws_acm_certificate" "app_cert" {
   domain_name               = var.domain_name
   validation_method         = "DNS"
@@ -9,25 +8,33 @@ resource "aws_acm_certificate" "app_cert" {
   }
 }
 
-# 2. Create Route 53 DNS validation records dynamically, avoiding duplicates
-resource "aws_route53_record" "app_cert_validation" {
-  for_each = {
+locals {
+  domain_validation_records = {
     for dvo in aws_acm_certificate.app_cert.domain_validation_options :
-    dvo.resource_record_name => dvo if dvo.resource_record_name != ""
+    dvo.resource_record_name => {
+      name   = dvo.resource_record_name
+      type   = dvo.resource_record_type
+      record = dvo.resource_record_value
+    } if dvo.resource_record_name != ""
   }
+}
+
+resource "aws_route53_record" "app_cert_validation" {
+  for_each = local.domain_validation_records
 
   zone_id = var.hosted_zone_id
-  name    = each.value.resource_record_name
-  type    = each.value.resource_record_type
-  records = [each.value.resource_record_value]
+  name    = each.value.name
+  type    = each.value.type
+  records = [each.value.record]
   ttl     = 60
 
   lifecycle {
     ignore_changes = [records]
   }
+
+  depends_on = [aws_acm_certificate.app_cert]
 }
 
-# 3. Validate the ACM certificate once DNS records are created
 resource "aws_acm_certificate_validation" "app_cert" {
   certificate_arn         = aws_acm_certificate.app_cert.arn
   validation_record_fqdns = [for record in aws_route53_record.app_cert_validation : record.fqdn]

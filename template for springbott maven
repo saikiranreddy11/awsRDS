@@ -1,4 +1,7 @@
-output "certificate_arn" {
-  description = "The ARN of the ACM certificate"
-  value       = aws_acm_certificate_validation.app_cert.certificate_arn
+module "acm" {
+  source        = "./modules/acm"
+  domain_name   = "prism.prd.aws.qdx.com"
+  san_names     = ["*.prism.prd.aws.qdx.com"]
+  hosted_zone_id = "Z063578637WWA8CTAOZDX" # Replace with your actual Hosted Zone ID
+  environment   = "production"
 }

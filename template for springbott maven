@@ -1,58 +1,17 @@
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "ReadFileAccess",
-            "Effect": "Deny",
-            "Principal": "*",
-            "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::qdx-prism-terraform-state-prod/*",
-            "Condition": {
-                "ArnNotEquals": {
-                    "aws:PrincipalArn": [
-                        "arn:aws:iam::269453432194:role/CoreInfraDeployRoleProd",
-                        "arn:aws:iam::269453432194:role/PrismAppDeployRoleProd",
-                        "arn:aws:iam::269453432194:role/TerraformDeployRoleProd",
-                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AWSAdministratorAccess_f33be3941082156f",
-                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_dgxGlobalAdministrator_cc4ce03406a5f041",
-                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_dgxIgfDevSecOpsAdmin_7d0834d8534aa5e2"
-                    ]
-                }
-            }
-        },
-        {
-            "Sid": "WriteFileAccess",
-            "Effect": "Deny",
-            "Principal": "*",
-            "Action": [
-                "s3:PutObject",
-                "s3:DeleteObject"
-            ],
-            "Resource": "arn:aws:s3:::qdx-prism-terraform-state-prod/*",
-            "Condition": {
-                "ArnNotEquals": {
-                    "aws:PrincipalArn": [
-                        "arn:aws:iam::269453432194:role/CoreInfraDeployRoleProd",
-                        "arn:aws:iam::269453432194:role/PrismAppDeployRoleProd",
-                        "arn:aws:iam::269453432194:role/TerraformDeployRoleProd",
-                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AWSAdministratorAccess_f33be3941082156f",
-                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_dgxGlobalAdministrator_cc4ce03406a5f041",
-                        "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_dgxIgfDevSecOpsAdmin_7d0834d8534aa5e2"
-                    ]
-                }
-            }
-        },
-        {
-            "Sid": "ManageBucketPolicy",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "arn:aws:iam::269453432194:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AWSAdministratorAccess_f33be3941082156f"
-            },
-            "Action": [
-                "s3:PutBucketPolicy",
-                "s3:DeleteBucketPolicy"
-            ],
-            "Resource": "arn:aws:s3:::qdx-prism-terraform-state-prod"
-        }
-    ]
+data "terraform_remote_state" "network" {
+  backend = "s3"
+
+  config = {
+    bucket         = "dgx-prism-usel-dev-tfstate-s3"   # S3 bucket from backend config
+    key            = "vpc/dgx-prism-usel-prd-tfstate-vpc.tfstate"  # Path to network state file
+    region         = "us-east-1"
+    dynamodb_table = "dgx-prism-usel-dev-tf-dynamodb" # Locking table from backend config
+  }
 }
+
+vpc_id         = data.terraform_remote_state.network.outputs.vpc_id
+alb_name       = "dgx-prism-usel-prd-alb"
+subnets        = data.terraform_remote_state.network.outputs.app_subnet_ids
+security_groups = [data.terraform_remote_state.network.outputs.vpce_sg_id]
+hosted_zone_id = data.terraform_remote_state.network.outputs.route53_zone_zone_id
+dns_name       = "app-test.prism.prd.aws.qdx.com"

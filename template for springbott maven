@@ -1,119 +1,24 @@
-module "acm" {
-  source = "./modules/acm"
-
-  domain_name   = var.domain_name
-  san_names     = var.san_names
-  hosted_zone_id = var.hosted_zone_id
-
-  create_certificate          = var.create_certificate
-  create_route53_records_only = var.create_route53_records_only
-
-  tags = {
-    Name        = var.domain_name
-    Environment = var.environment
-  }
+output "iam_role_arn" {
+  description = "ARN of the IAM role created for GitHub OIDC"
+  value       = module.iam_github_oidc_role.arn
 }
 
-
-
-variable "domain_name" {
-  description = "The primary domain name for the ACM certificate"
-  type        = string
+output "iam_role_name" {
+  description = "Name of the IAM role created for GitHub OIDC"
+  value       = module.iam_github_oidc_role.name
 }
 
-variable "san_names" {
-  description = "A list of Subject Alternative Names (SANs) for the certificate"
-  type        = list(string)
-  default     = []
+output "iam_role_path" {
+  description = "Path of the IAM role"
+  value       = module.iam_github_oidc_role.path
 }
 
-variable "hosted_zone_id" {
-  description = "The Route 53 Hosted Zone ID where DNS validation records will be created"
-  type        = string
+output "iam_role_unique_id" {
+  description = "Unique ID of the IAM role"
+  value       = module.iam_github_oidc_role.unique_id
 }
 
-variable "create_certificate" {
-  description = "Flag to create the ACM certificate"
-  type        = bool
-  default     = true
+output "iam_role_policies" {
+  description = "Attached policies for the IAM role"
+  value       = module.iam_github_oidc_role.policies
 }
-
-variable "create_route53_records_only" {
-  description = "If set to true, only creates Route 53 records for validation, without creating the certificate"
-  type        = bool
-  default     = false
-}
-
-variable "environment" {
-  description = "Deployment environment (e.g., production, staging, dev)"
-  type        = string
-}
-
-variable "tags" {
-  description = "A map of tags to apply to the certificate"
-  type        = map(string)
-  default     = {}
-}
-
-
-
-
-output "certificate_arn" {
-  description = "The ARN of the ACM certificate"
-  value       = try(aws_acm_certificate.app_cert[0].arn, null)
-}
-
-output "certificate_status" {
-  description = "The status of the ACM certificate (e.g., PENDING_VALIDATION, ISSUED)"
-  value       = try(aws_acm_certificate.app_cert[0].status, null)
-}
-
-output "certificate_domain_name" {
-  description = "The domain name associated with the ACM certificate"
-  value       = try(aws_acm_certificate.app_cert[0].domain_name, null)
-}
-
-output "certificate_san_names" {
-  description = "List of Subject Alternative Names (SANs) associated with the ACM certificate"
-  value       = try(aws_acm_certificate.app_cert[0].subject_alternative_names, [])
-}
-
-output "certificate_validation_records" {
-  description = "The Route 53 DNS validation records required for ACM certificate validation"
-  value = try([
-    for record in aws_route53_record.validation : {
-      name  = record.name
-      type  = record.type
-      value = record.records
-    }
-  ], [])
-}
-
-output "route53_validation_status" {
-  description = "The status of Route 53 validation records"
-  value       = try(aws_acm_certificate_validation.this[0].id, null)
-}
-
-output "hosted_zone_id" {
-  description = "The Route 53 Hosted Zone ID used for validation"
-  value       = var.hosted_zone_id
-}
-
-
-
-
-
-
-
-domain_name = "prism.prd.aws.qdx.com"
-san_names   = ["*.prism.prd.aws.qdx.com"]
-hosted_zone_id = "Z063578637WWA8CTAOZDX"
-create_certificate = true
-create_route53_records_only = false
-environment = "production"
-
-tags = {
-  Name        = "prism.prd.aws.qdx.com"
-  Environment = "production"
-}
-

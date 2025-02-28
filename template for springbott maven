@@ -1,24 +1,11 @@
-output "iam_role_arn" {
-  description = "ARN of the IAM role created for GitHub OIDC"
-  value       = module.iam_github_oidc_role.arn
-}
+resource "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
 
-output "iam_role_name" {
-  description = "Name of the IAM role created for GitHub OIDC"
-  value       = module.iam_github_oidc_role.name
-}
+  client_id_list = [
+    "sts.amazonaws.com"
+  ]
 
-output "iam_role_path" {
-  description = "Path of the IAM role"
-  value       = module.iam_github_oidc_role.path
-}
-
-output "iam_role_unique_id" {
-  description = "Unique ID of the IAM role"
-  value       = module.iam_github_oidc_role.unique_id
-}
-
-output "iam_role_policies" {
-  description = "Attached policies for the IAM role"
-  value       = module.iam_github_oidc_role.policies
+  thumbprint_list = [
+    "6938fd4d98bab03faadb97b34396831e3780aea1"
+  ]
 }

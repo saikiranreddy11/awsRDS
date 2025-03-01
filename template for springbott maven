@@ -1,9 +1,75 @@
-      - name: Checkout IAC repo (Current Repo)
-        uses: actions/checkout@v2
+module "app_secrets" {
+  source = "terraform-aws-modules/secrets-manager/aws"
 
-      - name: Checkout Application Repository
-        uses: actions/checkout@v2
-        with:
-          repository: QDXEnterpriseOrg/bxd-prism-application-v2
-          token: ${{ secrets.GIT_TOKEN }}  # Ensure you have a GitHub PAT set in secrets
-          path: app-repo  # Cloning the repo in a subfolder
+  name_prefix = "myapp-secrets"
+  description = "Secrets for my application"
+
+  secret_string = jsonencode({
+    deployEnv                 = var.deploy_env
+    deployDbSchema            = var.deploy_db_schema
+    deployDbXrefUdfSchema     = var.deploy_db_xref_udf_schema
+    deployDbCluster           = var.deploy_db_cluster
+    deployDbClusterMigrateRun = var.deploy_db_cluster_migrate_run
+    hostedZone                = var.hosted_zone
+    deployDomain              = var.deploy_domain
+    deployDomainEh            = var.deploy_domain_eh
+    deployDomainIqdb          = var.deploy_domain_iqdb
+    deployDomainVcf           = var.deploy_domain_vcf
+  })
+
+  tags = {
+    Environment = var.deploy_env
+  }
+}
+
+
+
+variable "deploy_env" {
+  description = "Deployment environment"
+  type        = string
+}
+
+variable "deploy_db_schema" {
+  description = "Database schema"
+  type        = string
+}
+
+variable "deploy_db_xref_udf_schema" {
+  description = "Cross-reference UDF schema"
+  type        = string
+}
+
+variable "deploy_db_cluster" {
+  description = "Database cluster flag"
+  type        = bool
+}
+
+variable "deploy_db_cluster_migrate_run" {
+  description = "DB cluster migration run"
+  type        = string
+}
+
+variable "hosted_zone" {
+  description = "Hosted zone"
+  type        = string
+}
+
+variable "deploy_domain" {
+  description = "Application domain"
+  type        = string
+}
+
+variable "deploy_domain_eh" {
+  description = "EH service domain"
+  type        = string
+}
+
+variable "deploy_domain_iqdb" {
+  description = "IQDB service domain"
+  type        = string
+}
+
+variable "deploy_domain_vcf" {
+  description = "VCF service domain"
+  type        = string
+}

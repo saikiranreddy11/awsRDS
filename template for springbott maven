@@ -1,75 +1,18 @@
-module "app_secrets" {
-  source = "terraform-aws-modules/secrets-manager/aws"
-
-  name_prefix = "myapp-secrets"
-  description = "Secrets for my application"
-
-  secret_string = jsonencode({
-    deployEnv                 = var.deploy_env
-    deployDbSchema            = var.deploy_db_schema
-    deployDbXrefUdfSchema     = var.deploy_db_xref_udf_schema
-    deployDbCluster           = var.deploy_db_cluster
-    deployDbClusterMigrateRun = var.deploy_db_cluster_migrate_run
-    hostedZone                = var.hosted_zone
-    deployDomain              = var.deploy_domain
-    deployDomainEh            = var.deploy_domain_eh
-    deployDomainIqdb          = var.deploy_domain_iqdb
-    deployDomainVcf           = var.deploy_domain_vcf
-  })
-
-  tags = {
-    Environment = var.deploy_env
-  }
-}
-
-
-
-variable "deploy_env" {
-  description = "Deployment environment"
-  type        = string
-}
-
-variable "deploy_db_schema" {
-  description = "Database schema"
-  type        = string
-}
-
-variable "deploy_db_xref_udf_schema" {
-  description = "Cross-reference UDF schema"
-  type        = string
-}
-
-variable "deploy_db_cluster" {
-  description = "Database cluster flag"
-  type        = bool
-}
-
-variable "deploy_db_cluster_migrate_run" {
-  description = "DB cluster migration run"
-  type        = string
-}
-
-variable "hosted_zone" {
-  description = "Hosted zone"
-  type        = string
-}
-
-variable "deploy_domain" {
-  description = "Application domain"
-  type        = string
-}
-
-variable "deploy_domain_eh" {
-  description = "EH service domain"
-  type        = string
-}
-
-variable "deploy_domain_iqdb" {
-  description = "IQDB service domain"
-  type        = string
-}
-
-variable "deploy_domain_vcf" {
-  description = "VCF service domain"
-  type        = string
-}
+jobs:
+  terraform-apply:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}  # Dynamically selects environment
+    env:
+      TF_VAR_deploy_env: ${{ secrets.DEPLOY_ENV }}
+      TF_VAR_deploy_db_schema: ${{ secrets.DEPLOY_DB_SCHEMA }}
+      TF_VAR_deploy_db_xref_udf_schema: ${{ secrets.DEPLOY_DB_XREF_UDF_SCHEMA }}
+      TF_VAR_deploy_db_cluster: ${{ secrets.DEPLOY_DB_CLUSTER }}
+      TF_VAR_deploy_db_cluster_migrate_run: ${{ secrets.DEPLOY_DB_CLUSTER_MIGRATE_RUN }}
+      TF_VAR_hosted_zone: ${{ secrets.HOSTED_ZONE }}
+      TF_VAR_deploy_domain: ${{ secrets.DEPLOY_DOMAIN }}
+      TF_VAR_deploy_domain_eh: ${{ secrets.DEPLOY_DOMAIN_EH }}
+      TF_VAR_deploy_domain_iqdb: ${{ secrets.DEPLOY_DOMAIN_IQDB }}
+      TF_VAR_deploy_domain_vcf: ${{ secrets.DEPLOY_DOMAIN_VCF }}
+    steps:
+      - name: Terraform Apply (Deploy Secrets)
+        run: terraform apply -auto-approve

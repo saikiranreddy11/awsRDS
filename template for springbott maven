@@ -1,18 +1,40 @@
-jobs:
-  terraform-apply:
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}  # Dynamically selects environment
-    env:
-      TF_VAR_deploy_env: ${{ secrets.DEPLOY_ENV }}
-      TF_VAR_deploy_db_schema: ${{ secrets.DEPLOY_DB_SCHEMA }}
-      TF_VAR_deploy_db_xref_udf_schema: ${{ secrets.DEPLOY_DB_XREF_UDF_SCHEMA }}
-      TF_VAR_deploy_db_cluster: ${{ secrets.DEPLOY_DB_CLUSTER }}
-      TF_VAR_deploy_db_cluster_migrate_run: ${{ secrets.DEPLOY_DB_CLUSTER_MIGRATE_RUN }}
-      TF_VAR_hosted_zone: ${{ secrets.HOSTED_ZONE }}
-      TF_VAR_deploy_domain: ${{ secrets.DEPLOY_DOMAIN }}
-      TF_VAR_deploy_domain_eh: ${{ secrets.DEPLOY_DOMAIN_EH }}
-      TF_VAR_deploy_domain_iqdb: ${{ secrets.DEPLOY_DOMAIN_IQDB }}
-      TF_VAR_deploy_domain_vcf: ${{ secrets.DEPLOY_DOMAIN_VCF }}
-    steps:
-      - name: Terraform Apply (Deploy Secrets)
-        run: terraform apply -auto-approve
+- name: Export Environment Variables
+  run: |
+    echo "TF_VAR_deploy_domain_mqu=${TF_VAR_deploy_domain_mqu}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_t7sgsc=${TF_VAR_deploy_domain_t7sgsc}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_starlims=${TF_VAR_deploy_domain_starlims}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_root_id_service=${TF_VAR_deploy_domain_root_id_service}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_reporting_service=${TF_VAR_deploy_domain_reporting_service}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_qdrs=${TF_VAR_deploy_domain_qdrs}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_quest_ping_federate=${TF_VAR_deploy_domain_quest_ping_federate}" >> $GITHUB_ENV
+    echo "TF_VAR_backend_secret_key=${TF_VAR_backend_secret_key}" >> $GITHUB_ENV
+    echo "TF_VAR_frontend_secret_key=${TF_VAR_frontend_secret_key}" >> $GITHUB_ENV
+    echo "TF_VAR_reporting_service_key=${TF_VAR_reporting_service_key}" >> $GITHUB_ENV
+    echo "TF_VAR_app_url=${TF_VAR_app_url}" >> $GITHUB_ENV
+    echo "TF_VAR_xdebug_mode=${TF_VAR_xdebug_mode}" >> $GITHUB_ENV
+    echo "TF_VAR_app_key=${TF_VAR_app_key}" >> $GITHUB_ENV
+    echo "TF_VAR_db_database=${TF_VAR_db_database}" >> $GITHUB_ENV
+    echo "TF_VAR_db_database_xref_udf=${TF_VAR_db_database_xref_udf}" >> $GITHUB_ENV
+    echo "TF_VAR_db_connection=${TF_VAR_db_connection}" >> $GITHUB_ENV
+    echo "TF_VAR_session_domain=${TF_VAR_session_domain}" >> $GITHUB_ENV
+    echo "TF_VAR_sanctum_stateful_domains=${TF_VAR_sanctum_stateful_domains}" >> $GITHUB_ENV
+    echo "TF_VAR_memcached_host=${TF_VAR_memcached_host}" >> $GITHUB_ENV
+    echo "TF_VAR_redis_host=${TF_VAR_redis_host}" >> $GITHUB_ENV
+    echo "TF_VAR_redis_password=${TF_VAR_redis_password}" >> $GITHUB_ENV
+    echo "TF_VAR_redis_port=${TF_VAR_redis_port}" >> $GITHUB_ENV
+    echo "TF_VAR_mail_host=${TF_VAR_mail_host}" >> $GITHUB_ENV
+    echo "TF_VAR_mail_port=${TF_VAR_mail_port}" >> $GITHUB_ENV
+    echo "TF_VAR_mail_username=${TF_VAR_mail_username}" >> $GITHUB_ENV
+    echo "TF_VAR_mail_password=${TF_VAR_mail_password}" >> $GITHUB_ENV
+    echo "TF_VAR_ldap_host=${TF_VAR_ldap_host}" >> $GITHUB_ENV
+    echo "TF_VAR_ldap_username=${TF_VAR_ldap_username}" >> $GITHUB_ENV
+    echo "TF_VAR_ldap_password=${TF_VAR_ldap_password}" >> $GITHUB_ENV
+    echo "TF_VAR_ldap_port=${TF_VAR_ldap_port}" >> $GITHUB_ENV
+    echo "TF_VAR_frontend_url=${TF_VAR_frontend_url}" >> $GITHUB_ENV
+    echo "TF_VAR_backend_client_url=${TF_VAR_backend_client_url}" >> $GITHUB_ENV
+    echo "TF_VAR_backend_server_url=${TF_VAR_backend_server_url}" >> $GITHUB_ENV
+    echo "TF_VAR_nexauth_url=${TF_VAR_nexauth_url}" >> $GITHUB_ENV
+    echo "TF_VAR_nexauth_url_internal=${TF_VAR_nexauth_url_internal}" >> $GITHUB_ENV
+    echo "TF_VAR_nexauth_secret=${TF_VAR_nexauth_secret}" >> $GITHUB_ENV
+    echo "TF_VAR_server_session_cookie_name=${TF_VAR_server_session_cookie_name}" >> $GITHUB_ENV
+    echo "TF_VAR_hostname=${TF_VAR_hostname}" >> $GITHUB_ENV

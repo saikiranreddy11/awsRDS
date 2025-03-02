@@ -1,197 +1,42 @@
-variable "deployDomainMqu" {
-  description = "Deployment domain for Mqu"
-  type        = string
-}
+module "secrets_manager" {
+  source = "./modules/secrets"
 
-variable "deployDomainT7sgsc" {
-  description = "Deployment domain for T7sgsc"
-  type        = string
-}
-
-variable "deployDomainStarlims" {
-  description = "Deployment domain for Starlims"
-  type        = string
-}
-
-variable "deployDomainRootIdService" {
-  description = "Deployment domain for RootIdService"
-  type        = string
-}
-
-variable "deployDomainReportingService" {
-  description = "Deployment domain for ReportingService"
-  type        = string
-}
-
-variable "deployDomainQdrs" {
-  description = "Deployment domain for Qdrs"
-  type        = string
-}
-
-variable "deployDomainQuestPingFederate" {
-  description = "Deployment domain for Quest Ping Federate"
-  type        = string
-}
-
-variable "backendSecretKey" {
-  description = "Backend secret key"
-  type        = string
-  sensitive   = true
-}
-
-variable "frontendSecretKey" {
-  description = "Frontend secret key"
-  type        = string
-  sensitive   = true
-}
-
-variable "reportingServiceKey" {
-  description = "Reporting service key"
-  type        = string
-  sensitive   = true
-}
-
-variable "APP_URL" {
-  description = "Application URL"
-  type        = string
-}
-
-variable "XDEBUG_MODE" {
-  description = "Xdebug mode"
-  type        = string
-}
-
-variable "APP_KEY" {
-  description = "Application key"
-  type        = string
-  sensitive   = true
-}
-
-variable "DB_DATABASE" {
-  description = "Database name"
-  type        = string
-}
-
-variable "DB_DATABASE_XREF_UDF" {
-  description = "Database XREF UDF schema"
-  type        = string
-}
-
-variable "DB_CONNECTION" {
-  description = "Database connection type"
-  type        = string
-}
-
-variable "SESSION_DOMAIN" {
-  description = "Session domain"
-  type        = string
-}
-
-variable "SANCTUM_STATEFUL_DOMAINS" {
-  description = "Sanctum stateful domains"
-  type        = string
-}
-
-variable "MEMCACHED_HOST" {
-  description = "Memcached host"
-  type        = string
-}
-
-variable "REDIS_HOST" {
-  description = "Redis host"
-  type        = string
-}
-
-variable "REDIS_PASSWORD" {
-  description = "Redis password"
-  type        = string
-  sensitive   = true
-}
-
-variable "REDIS_PORT" {
-  description = "Redis port"
-  type        = string
-}
-
-variable "MAIL_HOST" {
-  description = "Mail host"
-  type        = string
-}
-
-variable "MAIL_PORT" {
-  description = "Mail port"
-  type        = string
-}
-
-variable "MAIL_USERNAME" {
-  description = "Mail username"
-  type        = string
-}
-
-variable "MAIL_PASSWORD" {
-  description = "Mail password"
-  type        = string
-  sensitive   = true
-}
-
-variable "LDAP_HOST" {
-  description = "LDAP host"
-  type        = string
-}
-
-variable "LDAP_USERNAME" {
-  description = "LDAP username"
-  type        = string
-}
-
-variable "LDAP_PASSWORD" {
-  description = "LDAP password"
-  type        = string
-  sensitive   = true
-}
-
-variable "LDAP_PORT" {
-  description = "LDAP port"
-  type        = string
-}
-
-variable "FRONTEND_URL" {
-  description = "Frontend URL"
-  type        = string
-}
-
-variable "BACKEND_CLIENT_URL" {
-  description = "Backend client URL"
-  type        = string
-}
-
-variable "BACKEND_SERVER_URL" {
-  description = "Backend server URL"
-  type        = string
-}
-
-variable "NEXAUTH_URL" {
-  description = "Nexauth URL"
-  type        = string
-}
-
-variable "NEXAUTH_URL_INTERNAL" {
-  description = "Nexauth internal URL"
-  type        = string
-}
-
-variable "NEXAUTH_SECRET" {
-  description = "Nexauth secret"
-  type        = string
-  sensitive   = true
-}
-
-variable "SERVER_SESSION_COOKIE_NAME" {
-  description = "Server session cookie name"
-  type        = string
-}
-
-variable "HOSTNAME" {
-  description = "Hostname"
-  type        = string
+  deployDomainMqu             = var.deployDomainMqu
+  deployDomainT7sgsc          = var.deployDomainT7sgsc
+  deployDomainStarlims        = var.deployDomainStarlims
+  deployDomainRootIdService   = var.deployDomainRootIdService
+  deployDomainReportingService = var.deployDomainReportingService
+  deployDomainQdrs            = var.deployDomainQdrs
+  deployDomainQuestPingFederate = var.deployDomainQuestPingFederate
+  backendSecretKey            = var.backendSecretKey
+  frontendSecretKey           = var.frontendSecretKey
+  reportingServiceKey         = var.reportingServiceKey
+  APP_URL                     = var.APP_URL
+  XDEBUG_MODE                 = var.XDEBUG_MODE
+  APP_KEY                     = var.APP_KEY
+  DB_DATABASE                 = var.DB_DATABASE
+  DB_DATABASE_XREF_UDF        = var.DB_DATABASE_XREF_UDF
+  DB_CONNECTION               = var.DB_CONNECTION
+  SESSION_DOMAIN              = var.SESSION_DOMAIN
+  SANCTUM_STATEFUL_DOMAINS    = var.SANCTUM_STATEFUL_DOMAINS
+  MEMCACHED_HOST              = var.MEMCACHED_HOST
+  REDIS_HOST                  = var.REDIS_HOST
+  REDIS_PASSWORD              = var.REDIS_PASSWORD
+  REDIS_PORT                  = var.REDIS_PORT
+  MAIL_HOST                   = var.MAIL_HOST
+  MAIL_PORT                   = var.MAIL_PORT
+  MAIL_USERNAME               = var.MAIL_USERNAME
+  MAIL_PASSWORD               = var.MAIL_PASSWORD
+  LDAP_HOST                   = var.LDAP_HOST
+  LDAP_USERNAME               = var.LDAP_USERNAME
+  LDAP_PASSWORD               = var.LDAP_PASSWORD
+  LDAP_PORT                   = var.LDAP_PORT
+  FRONTEND_URL                = var.FRONTEND_URL
+  BACKEND_CLIENT_URL          = var.BACKEND_CLIENT_URL
+  BACKEND_SERVER_URL          = var.BACKEND_SERVER_URL
+  NEXAUTH_URL                 = var.NEXAUTH_URL
+  NEXAUTH_URL_INTERNAL        = var.NEXAUTH_URL_INTERNAL
+  NEXAUTH_SECRET              = var.NEXAUTH_SECRET
+  SERVER_SESSION_COOKIE_NAME  = var.SERVER_SESSION_COOKIE_NAME
+  HOSTNAME                    = var.HOSTNAME
 }

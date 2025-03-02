@@ -1,42 +1,66 @@
-module "secrets_manager" {
-  source = "./modules/secrets"
+- name: Setup Environment Variables
+  run: |
+    # Export raw values from secrets
+    echo "TF_VAR_deploy_env=${{ secrets.DEPLOYENV }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_db_schema=${{ secrets.DEPLOYDBSCHEMA }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_db_xref_udf_schema=${{ secrets.DEPLOYDBXREFUDFSCHEMA }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_db_cluster=${{ secrets.DEPLOYDBCLUSTER }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_db_cluster_migrate_run=${{ secrets.DEPLOYDBCLUSTERMIGRATERUN }}" >> $GITHUB_ENV
+    echo "TF_VAR_hosted_zone=${{ secrets.HOSTEDZONE }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain=${{ secrets.DEPLOYDOMAIN }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_eh=${{ secrets.DEPLOYDOMAINEH }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_iqdb=${{ secrets.DEPLOYDOMAINIQDB }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_vcf=${{ secrets.DEPLOYDOMAINVCF }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_mqu=${{ secrets.DEPLOYDOMAINMQU }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_t7sgsc=${{ secrets.DEPLOYDOMAINT7SGSC }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_starlims=${{ secrets.DEPLOYDOMAINSTARLIMS }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_root_id_service=${{ secrets.DEPLOYDOMAINROOTIDSERVICE }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_reporting_service=${{ secrets.DEPLOYDOMAINREPORTINGSERVICE }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_qdrs=${{ secrets.DEPLOYDOMAINQDRS }}" >> $GITHUB_ENV
+    echo "TF_VAR_deploy_domain_quest_ping_federate=${{ secrets.DEPLOYDOMAINQUESTPINGFEDERATE }}" >> $GITHUB_ENV
+    echo "TF_VAR_backend_secret_key=${{ secrets.BACKENDSECRETKEY }}" >> $GITHUB_ENV
+    echo "TF_VAR_frontend_secret_key=${{ secrets.FRONTENDSECRETKEY }}" >> $GITHUB_ENV
+    echo "TF_VAR_reporting_service_key=${{ secrets.REPORTINGSERVICEKEY }}" >> $GITHUB_ENV
+    echo "TF_VAR_APP_URL=${{ secrets.APP_URL }}" >> $GITHUB_ENV
+    echo "TF_VAR_XDEBUG_MODE=${{ secrets.XDEBUG_MODE }}" >> $GITHUB_ENV
 
-  deployDomainMqu             = var.deployDomainMqu
-  deployDomainT7sgsc          = var.deployDomainT7sgsc
-  deployDomainStarlims        = var.deployDomainStarlims
-  deployDomainRootIdService   = var.deployDomainRootIdService
-  deployDomainReportingService = var.deployDomainReportingService
-  deployDomainQdrs            = var.deployDomainQdrs
-  deployDomainQuestPingFederate = var.deployDomainQuestPingFederate
-  backendSecretKey            = var.backendSecretKey
-  frontendSecretKey           = var.frontendSecretKey
-  reportingServiceKey         = var.reportingServiceKey
-  APP_URL                     = var.APP_URL
-  XDEBUG_MODE                 = var.XDEBUG_MODE
-  APP_KEY                     = var.APP_KEY
-  DB_DATABASE                 = var.DB_DATABASE
-  DB_DATABASE_XREF_UDF        = var.DB_DATABASE_XREF_UDF
-  DB_CONNECTION               = var.DB_CONNECTION
-  SESSION_DOMAIN              = var.SESSION_DOMAIN
-  SANCTUM_STATEFUL_DOMAINS    = var.SANCTUM_STATEFUL_DOMAINS
-  MEMCACHED_HOST              = var.MEMCACHED_HOST
-  REDIS_HOST                  = var.REDIS_HOST
-  REDIS_PASSWORD              = var.REDIS_PASSWORD
-  REDIS_PORT                  = var.REDIS_PORT
-  MAIL_HOST                   = var.MAIL_HOST
-  MAIL_PORT                   = var.MAIL_PORT
-  MAIL_USERNAME               = var.MAIL_USERNAME
-  MAIL_PASSWORD               = var.MAIL_PASSWORD
-  LDAP_HOST                   = var.LDAP_HOST
-  LDAP_USERNAME               = var.LDAP_USERNAME
-  LDAP_PASSWORD               = var.LDAP_PASSWORD
-  LDAP_PORT                   = var.LDAP_PORT
-  FRONTEND_URL                = var.FRONTEND_URL
-  BACKEND_CLIENT_URL          = var.BACKEND_CLIENT_URL
-  BACKEND_SERVER_URL          = var.BACKEND_SERVER_URL
-  NEXAUTH_URL                 = var.NEXAUTH_URL
-  NEXAUTH_URL_INTERNAL        = var.NEXAUTH_URL_INTERNAL
-  NEXAUTH_SECRET              = var.NEXAUTH_SECRET
-  SERVER_SESSION_COOKIE_NAME  = var.SERVER_SESSION_COOKIE_NAME
-  HOSTNAME                    = var.HOSTNAME
-}
+    # Resolve variables with dependencies
+    TF_VAR_APP_KEY=$(eval echo "${{ secrets.APP_KEY }}")
+    TF_VAR_DB_DATABASE=$(eval echo "${{ secrets.DB_DATABASE }}")
+    TF_VAR_DB_DATABASE_XREF_UDF=$(eval echo "${{ secrets.DB_DATABASE_XREF_UDF }}")
+    TF_VAR_DB_CONNECTION=$(eval echo "${{ secrets.DB_CONNECTION }}")
+    TF_VAR_SESSION_DOMAIN=$(eval echo "${{ secrets.DEPLOYDOMAIN }}")
+    TF_VAR_SANCTUM_STATEFUL_DOMAINS=$(eval echo "${{ secrets.DEPLOYDOMAIN }}")
+    TF_VAR_BACKEND_CLIENT_URL=$(eval echo "${{ secrets.DEPLOYDOMAIN }}")
+    TF_VAR_NEXAUTH_URL=$(eval echo "${{ secrets.DEPLOYDOMAIN }}")
+    TF_VAR_NEXAUTH_SECRET=$(eval echo "${{ secrets.FRONTENDSECRETKEY }}")
+
+    # Export resolved variables
+    echo "TF_VAR_APP_KEY=${TF_VAR_APP_KEY}" >> $GITHUB_ENV
+    echo "TF_VAR_DB_DATABASE=${TF_VAR_DB_DATABASE}" >> $GITHUB_ENV
+    echo "TF_VAR_DB_DATABASE_XREF_UDF=${TF_VAR_DB_DATABASE_XREF_UDF}" >> $GITHUB_ENV
+    echo "TF_VAR_DB_CONNECTION=${TF_VAR_DB_CONNECTION}" >> $GITHUB_ENV
+    echo "TF_VAR_SESSION_DOMAIN=${TF_VAR_SESSION_DOMAIN}" >> $GITHUB_ENV
+    echo "TF_VAR_SANCTUM_STATEFUL_DOMAINS=${TF_VAR_SANCTUM_STATEFUL_DOMAINS}" >> $GITHUB_ENV
+    echo "TF_VAR_BACKEND_CLIENT_URL=${TF_VAR_BACKEND_CLIENT_URL}" >> $GITHUB_ENV
+    echo "TF_VAR_NEXAUTH_URL=${TF_VAR_NEXAUTH_URL}" >> $GITHUB_ENV
+    echo "TF_VAR_NEXAUTH_SECRET=${TF_VAR_NEXAUTH_SECRET}" >> $GITHUB_ENV
+
+    # Remaining non-dependent secrets
+    echo "TF_VAR_MEMCACHED_HOST=${{ secrets.MEMCACHED_HOST }}" >> $GITHUB_ENV
+    echo "TF_VAR_REDIS_HOST=${{ secrets.REDIS_HOST }}" >> $GITHUB_ENV
+    echo "TF_VAR_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> $GITHUB_ENV
+    echo "TF_VAR_REDIS_PORT=${{ secrets.REDIS_PORT }}" >> $GITHUB_ENV
+    echo "TF_VAR_MAIL_HOST=${{ secrets.MAIL_HOST }}" >> $GITHUB_ENV
+    echo "TF_VAR_MAIL_PORT=${{ secrets.MAIL_PORT }}" >> $GITHUB_ENV
+    echo "TF_VAR_MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> $GITHUB_ENV
+    echo "TF_VAR_MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> $GITHUB_ENV
+    echo "TF_VAR_LDAP_HOST=${{ secrets.LDAP_HOST }}" >> $GITHUB_ENV
+    echo "TF_VAR_LDAP_USERNAME=${{ secrets.LDAP_USERNAME }}" >> $GITHUB_ENV
+    echo "TF_VAR_LDAP_PASSWORD=${{ secrets.LDAP_PASSWORD }}" >> $GITHUB_ENV
+    echo "TF_VAR_LDAP_PORT=${{ secrets.LDAP_PORT }}" >> $GITHUB_ENV
+    echo "TF_VAR_FRONTEND_URL=${{ secrets.FRONTEND_URL }}" >> $GITHUB_ENV
+    echo "TF_VAR_BACKEND_SERVER_URL=${{ secrets.BACKEND_SERVER_URL }}" >> $GITHUB_ENV
+    echo "TF_VAR_NEXAUTH_URL_INTERNAL=${{ secrets.NEXAUTH_URL_INTERNAL }}" >> $GITHUB_ENV
+    echo "TF_VAR_SERVER_SESSION_COOKIE_NAME=${{ secrets.SERVER_SESSION_COOKIE_NAME }}" >> $GITHUB_ENV
+    echo "TF_VAR_HOSTNAME=${{ secrets.HOSTNAME }}" >> $GITHUB_ENV

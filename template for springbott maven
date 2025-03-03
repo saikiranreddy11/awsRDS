@@ -1,32 +1,56 @@
-module "ecs_cluster" {
-  source = "./ecs-cluster-module"  # Path to your module
+module "ecs_service_prism" {
+  source = "terraform-aws-modules/ecs/aws//modules/service"
 
-  create                 = true
-  cluster_name           = "dgx-prism-use-prd-ecs"  # Your ECS Cluster Name
-  create_cloudwatch_log_group = true
+  # General Service Configuration
+  name        = "prism"
+  cluster_arn = "arn:aws:ecs:us-east-1:XXXXXXXXXXXX:cluster/PrismECSStack-cluster"
 
-  # CloudWatch Log Group for ECS Cluster
-  cloudwatch_log_group_name              = "/aws/ecs/dgx-prism-use-prd"
-  cloudwatch_log_group_retention_in_days = 14
-  cloudwatch_log_group_kms_key_id        = null
-
-  # ✅ Use Only Fargate On-Demand
-  fargate_capacity_providers = {
-    fargate = {
-      name = "FARGATE"
-    }
+  # Deployment Configuration
+  deployment_circuit_breaker = {
+    enable   = false
+    rollback = false
   }
-  default_capacity_provider_use_fargate = true
+  deployment_maximum_percent         = 200
+  deployment_minimum_healthy_percent = 50
+  desired_count                      = 1
+  enable_execute_command             = true
+  health_check_grace_period_seconds  = 60
+  launch_type                        = "FARGATE"
+  scheduling_strategy                = "REPLICA"
+  platform_version                   = "LATEST"
 
-  # ✅ Create a Shared Task Execution Role for the Cluster
-  create_task_exec_iam_role = true
-  task_exec_iam_role_name   = "ecs-task-execution-role-dgx-prism"
-  task_exec_iam_role_policies = {
-    ecs_task_exec = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+  # Load Balancer Configuration
+  load_balancer = [{
+    container_name   = "gatewaydev-nginx-1"
+    container_port   = 80
+    target_group_arn = "arn:aws:elasticloadbalancing:us-east-1:XXXXXXXXXXXX:targetgroup/PrismE-AppLo-5B958PVJSU1/0cfaeab4c81e226"
+  }]
+
+  # Networking Configuration
+  network_configuration = {
+    assign_public_ip = false
+    security_groups  = [
+      "${data.terraform_remote_state.sg.outputs.aws_security_group_tfer--PrismECSStack-ECSS..."
+    ]
+    subnets = [
+      "${data.terraform_remote_state.subnet.outputs.aws_subnet_tfer--subnet-0077e0e6819863838_id}",
+      "${data.terraform_remote_state.subnet.outputs.aws_subnet_tfer--subnet-07093fb4c02523d76_id}"
+    ]
   }
 
+  # Service Discovery (Cloud Map)
+  service_registries = [{
+    container_port = 0
+    port           = 0
+    registry_arn   = "arn:aws:servicediscovery:us-east-1:XXXXXXXXXXXX:service/srv-15752uwfaqulowr"
+  }]
+
+  # Task Definition Reference
+  task_definition = "arn:aws:ecs:us-east-1:XXXXXXXXXXXX:task-definition/PrismECSStackPrismTaskDefB05CB749:27"
+
+  # Tags
   tags = {
-    Environment = "prd"
+    Environment = "production"
     Application = "prism"
   }
 }

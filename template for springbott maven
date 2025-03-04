@@ -1,1 +1,10 @@
-openssl req -new -newkey rsa:2048 -nodes -keyout private.key -out certificate.csr -config cert.cnf
+openssl x509 -req -days 365 -in certificate.csr -signkey private.key -out certificate.crt -extensions req_ext -extfile cert.cnf
+
+
+openssl x509 -text -noout -in certificate.crt | grep -A2 "Subject Alternative Name"
+
+cat certificate.crt private.key > certificate.pem
+
+
+openssl x509 -in certificate.crt -outform PEM -out certificate.pem
+openssl rsa -in private.key -outform PEM -out privatekey.pem

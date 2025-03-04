@@ -1,5 +1,14 @@
-resource "aws_service_discovery_private_dns_namespace" "example" {
-  name        = "myapp.local"  # Private namespace name
-  description = "Service Discovery for ECS services"
-  vpc         = aws_vpc.example.id  # Attach namespace to an existing VPC
+output "prism_ecs_namespace_id" {
+  description = "The ID of the created Cloud Map private DNS namespace"
+  value       = aws_service_discovery_private_dns_namespace.prism_ecs_namespace.id
+}
+
+output "prism_ecs_namespace_arn" {
+  description = "The ARN of the created Cloud Map private DNS namespace"
+  value       = aws_service_discovery_private_dns_namespace.prism_ecs_namespace.arn
+}
+
+output "prism_ecs_namespace_hosted_zone" {
+  description = "The hosted zone ID of the private DNS namespace"
+  value       = aws_service_discovery_private_dns_namespace.prism_ecs_namespace.hosted_zone
 }

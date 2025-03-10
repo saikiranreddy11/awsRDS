@@ -1,70 +1,9 @@
-module "ecs_alb" {
-  source = "<path_to_standard_module>"
+output "dns_name" {
+  description = "The DNS name of the ALB"
+  value       = aws_lb.this[0].dns_name
+}
 
-  create               = true
-  vpc_id               = local.vpc_id
-  name                 = var.alb_name
-  subnets              = local.subnets
-  security_groups      = local.security_groups
-  certificate_arn      = var.certificate_arn
-  hosted_zone_id       = local.hosted_zone_id
-  dns_name             = var.dns_name
-
-  create_security_group = false  # Set to true if you want the module to create a security group
-  enable_http2          = true
-  enable_tls_version_and_cipher_suite_headers = true
-
-  listeners = {
-    http = {
-      port     = 80
-      protocol = "HTTP"
-      default_action = {
-        type = "redirect"
-        redirect = {
-          port        = "443"
-          protocol    = "HTTPS"
-          status_code = "HTTP_302"
-        }
-      }
-    }
-    https = {
-      port            = 443
-      protocol        = "HTTPS"
-      certificate_arn = var.certificate_arn
-      default_action = {
-        type             = "forward"
-        target_group_key = "nginx-tg"
-      }
-    }
-  }
-
-  target_groups = {
-    nginx-tg = {
-      name        = "nginx-tg"
-      port        = 80
-      protocol    = "HTTP"
-      vpc_id      = var.vpc_id
-      target_type = "ip"
-      health_check = {
-        path                = "/login"
-        interval            = 120
-        timeout             = 5
-        healthy_threshold   = 5
-        unhealthy_threshold = 2
-      }
-    }
-  }
-
-  route53_records = {
-    app_alias = {
-      zone_id = var.hosted_zone_id
-      name    = var.dns_name
-      type    = "A"
-      alias = {
-        name                   = module.ecs_alb.dns_name
-        zone_id                = module.ecs_alb.zone_id
-        evaluate_target_health = true
-      }
-    }
-  }
+output "zone_id" {
+  description = "The hosted zone ID of the ALB"
+  value       = aws_lb.this[0].zone_id
 }

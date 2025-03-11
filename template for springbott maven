@@ -1,9 +1,56 @@
-output "dns_name" {
-  description = "The DNS name of the ALB"
-  value       = aws_lb.this[0].dns_name
+variable "sg_ingress_rules" {
+  description = "Ingress rules for ALB security group"
+  type        = map(object({
+    from_port   = number
+    to_port     = number
+    ip_protocol = string
+    description = string
+    cidr_ipv4   = string
+  }))
 }
 
-output "zone_id" {
-  description = "The hosted zone ID of the ALB"
-  value       = aws_lb.this[0].zone_id
+
+sg_ingress_rules = {
+  rule_1 = {
+    from_port   = 0
+    to_port     = 0
+    ip_protocol = "-1"
+    description = "Allow all traffic from SG 06d1f..."
+    cidr_ipv4   = "0.0.0.0/0"
+  }
+  rule_2 = {
+    from_port   = 0
+    to_port     = 0
+    ip_protocol = "-1"
+    description = "Allow all traffic from SG 0ebd1..."
+    cidr_ipv4   = "10.48.0.0/16"
+  }
+  rule_3 = {
+    from_port   = 80
+    to_port     = 80
+    ip_protocol = "tcp"
+    description = "Allow HTTP traffic from 10.0.0.0/16"
+    cidr_ipv4   = "10.0.0.0/16"
+  }
+  rule_4 = {
+    from_port   = 443
+    to_port     = 443
+    ip_protocol = "tcp"
+    description = "Allow HTTPS traffic from 10.0.0.0/16"
+    cidr_ipv4   = "10.0.0.0/16"
+  }
+  rule_5 = {
+    from_port   = 0
+    to_port     = 0
+    ip_protocol = "-1"
+    description = "Allow all traffic from 10.124.131.0/24"
+    cidr_ipv4   = "10.124.131.0/24"
+  }
+  rule_6 = {
+    from_port   = 0
+    to_port     = 0
+    ip_protocol = "-1"
+    description = "Allow all traffic from 10.0.0.0/8"
+    cidr_ipv4   = "10.0.0.0/8"
+  }
 }

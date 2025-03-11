@@ -1,20 +1,48 @@
-sg_egress_rules = {
-  all_traffic = {
-    from_port   = 0
-    to_port     = 0
-    ip_protocol = "-1"
-    description = "Allow all outbound traffic"
-    cidr_ipv4   = "0.0.0.0/0"
-  }
+output "alb_id" {
+  description = "The ID of the created ALB"
+  value       = module.ecs_alb.id
 }
 
+output "alb_arn" {
+  description = "The ARN of the ALB"
+  value       = module.ecs_alb.arn
+}
 
-
-  security_group_egress_rules  = var.sg_egress_rules
+output "alb_arn_suffix" {
+  description = "The ARN suffix of the ALB"
+  value       = module.ecs_alb.arn_suffix
+}
 
 output "alb_dns_name" {
   description = "The DNS name of the ALB"
   value       = module.ecs_alb.dns_name
+}
+
+output "alb_zone_id" {
+  description = "The zone ID of the ALB to assist with creating DNS records"
+  value       = module.ecs_alb.zone_id
+}
+
+
+output "alb_listeners" {
+  description = "Map of listeners created and their attributes"
+  value       = module.ecs_alb.listeners
+}
+
+output "alb_listener_rules" {
+  description = "Map of listener rules created and their attributes"
+  value       = module.ecs_alb.listener_rules
+}
+
+
+output "alb_target_groups" {
+  description = "Map of target groups created and their attributes"
+  value       = module.ecs_alb.target_groups
+}
+
+output "alb_security_group_arn" {
+  description = "The ARN of the security group attached to the ALB"
+  value       = module.ecs_alb.security_group_arn
 }
 
 output "alb_security_group_id" {
@@ -22,12 +50,8 @@ output "alb_security_group_id" {
   value       = module.ecs_alb.security_group_id
 }
 
-output "alb_target_group_arn" {
-  description = "The ARN of the ALB target group"
-  value       = module.ecs_alb.target_groups["nginx-tg"].arn
-}
 
-output "route53_record" {
-  description = "Route 53 record created for the ALB"
+output "alb_route53_records" {
+  description = "The Route 53 records created and attached to the ALB"
   value       = module.ecs_alb.route53_records
 }

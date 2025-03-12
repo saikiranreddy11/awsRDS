@@ -1,93 +1,17 @@
-variable "cluster_name" {
-  description = "Name of the ECS cluster"
-  type        = string
+locals {
+  vpc_id         = data.terraform_remote_state.network.outputs.vpc_id
+  subnets        = data.terraform_remote_state.network.outputs.app_subnet_ids
+  security_groups = [data.terraform_remote_state.network.outputs.ecs_service_sg_id]
+
+  # Dynamically fetch the hosted zone without constructing a hardcoded key
+  hosted_zone_id = lookup(data.terraform_remote_state.network.outputs.route53_zone_zone_id, var.default_zone_name, "")
 }
 
-variable "cloudwatch_log_group_name" {
-  description = "CloudWatch Log Group for ECS Cluster"
-  type        = string
-}
 
-variable "task_exec_iam_role_name" {
-  description = "IAM Role Name for ECS Task Execution"
-  type        = string
-}
-
-variable "task_exec_iam_role_policies" {
-  description = "List of IAM policies for the ECS Task Execution Role"
-  type        = list(string)
-}
-
-variable "tags" {
-  description = "Tags for resources"
-  type        = map(string)
-}
-
-variable "service_discovery_name" {
-  description = "Private DNS namespace name for service discovery"
-  type        = string
-}
-
-variable "vpc_id" {
-  description = "VPC ID to attach the namespace"
+variable "default_zone_name" {
+  description = "The default Route53 hosted zone to use"
   type        = string
 }
 
 
-
-
-
-
-module "prism_ecs_cluster" {
-  source = "../modules/ecs/cluster"
-
-  create                        = true
-  cluster_name                  = var.cluster_name
-  create_cloudwatch_use_group   = true
-
-  # CloudWatch Log Group for ECS Cluster
-  cloudwatch_log_group_name        = var.cloudwatch_log_group_name
-  cloudwatch_log_group_retention_in_days = 14
-  cloudwatch_log_group_kms_key_id   = null
-
-  # Use Only Fargate On-Demand
-  fargate_capacity_providers = {
-    fargate = {
-      name = "FARGATE"
-    }
-  }
-
-  default_capacity_provider_use_fargate = true
-
-  # Create a Shared Task Execution Role for the Cluster
-  create_task_exec_iam_role = true
-  task_exec_iam_role_name   = var.task_exec_iam_role_name
-  task_exec_iam_role_policies = var.task_exec_iam_role_policies
-
-  tags = var.tags
-}
-
-resource "aws_service_discovery_private_dns_namespace" "prism_ecs_namespace" {
-  name        = var.service_discovery_name
-  description = "Service Discovery for Prism ECS services"
-  vpc         = var.vpc_id # Attach namespace to an existing VPC
-}
-
-
-
-
-cluster_name                  = "dgx-prism-use1-prd-ecs"
-cloudwatch_log_group_name      = "/aws/ecs/dgx-prism-use1-prd"
-task_exec_iam_role_name        = "dgx-prism-use1-prd-task-exec-role"
-task_exec_iam_role_policies    = [
-  "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
-  "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess",
-  "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-]
-tags = {
-  Environment  = "prd"
-  Application  = "prism"
-}
-
-service_discovery_name = "myapp.local"
-vpc_id                 = "vpc-0d84a1a23aa74a843"
+default_zone_name = "prism.prd.aws.qdx.com"

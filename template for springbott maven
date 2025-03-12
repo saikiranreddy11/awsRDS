@@ -1,11 +1,19 @@
 locals {
-  vpc_id         = data.terraform_remote_state.network.outputs.vpc_id
-  subnets        = data.terraform_remote_state.network.outputs.app_subnet_ids
-  security_groups = [data.terraform_remote_state.network.outputs.ecs_service_sg_id]
+  # Fetching ECS Cluster Details
+  ecs_cluster_arn        = data.terraform_remote_state.ecs_cluster.outputs.prism_ecs_cluster_arn
+  ecs_cluster_id         = data.terraform_remote_state.ecs_cluster.outputs.prism_ecs_cluster_id
+  ecs_cluster_name       = data.terraform_remote_state.ecs_cluster.outputs.prism_ecs_cluster_name
 
-  # Dynamically fetch the zone name from Terraform remote state
-  hosted_zone_name = values(data.terraform_remote_state.network.outputs.route53_zone_name)[0]
+  # Fetching CloudWatch Log Group
+  cloudwatch_log_group_name = data.terraform_remote_state.ecs_cluster.outputs.cloudwatch_log_group_name
+  cloudwatch_log_group_arn  = data.terraform_remote_state.ecs_cluster.outputs.cloudwatch_log_group_arn
 
-  # Use the dynamically fetched zone name to get the corresponding Hosted Zone ID
-  hosted_zone_id = lookup(data.terraform_remote_state.network.outputs.route53_zone_zone_id, local.hosted_zone_name, "")
+  # Fetching Task Execution Role
+  task_exec_iam_role_name = data.terraform_remote_state.ecs_cluster.outputs.task_exec_iam_role_name
+  task_exec_iam_role_arn  = data.terraform_remote_state.ecs_cluster.outputs.task_exec_iam_role_arn
+
+  # Fetching Service Discovery Namespace
+  namespace_id      = data.terraform_remote_state.ecs_cluster.outputs.prism_ecs_namespace_id
+  namespace_arn     = data.terraform_remote_state.ecs_cluster.outputs.prism_ecs_namespace_arn
+  namespace_zone_id = data.terraform_remote_state.ecs_cluster.outputs.prism_ecs_namespace_hosted_zone
 }

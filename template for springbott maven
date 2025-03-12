@@ -3,15 +3,9 @@ locals {
   subnets        = data.terraform_remote_state.network.outputs.app_subnet_ids
   security_groups = [data.terraform_remote_state.network.outputs.ecs_service_sg_id]
 
-  # Dynamically fetch the hosted zone without constructing a hardcoded key
-  hosted_zone_id = lookup(data.terraform_remote_state.network.outputs.route53_zone_zone_id, var.default_zone_name, "")
+  # Dynamically fetch the zone name from Terraform remote state
+  hosted_zone_name = values(data.terraform_remote_state.network.outputs.route53_zone_name)[0]
+
+  # Use the dynamically fetched zone name to get the corresponding Hosted Zone ID
+  hosted_zone_id = lookup(data.terraform_remote_state.network.outputs.route53_zone_zone_id, local.hosted_zone_name, "")
 }
-
-
-variable "default_zone_name" {
-  description = "The default Route53 hosted zone to use"
-  type        = string
-}
-
-
-default_zone_name = "prism.prd.aws.qdx.com"

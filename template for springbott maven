@@ -1,4 +1,6 @@
+# Step 1: Validate ECS Deployment (Check for rollback)
 - name: Wait for ECS Deployment
+  id: wait-for-deployment  # Add an ID to reference outputs in later steps
   run: |
     CLUSTER_NAME="dgx-prism-use1-prd-ecs"
     SERVICE_NAME="${{ matrix.service }}"
@@ -10,6 +12,7 @@
 
       if [ "$STATUS" == "COMPLETED" ]; then
         echo "✅ Deployment (or rollback) completed successfully"
+        echo "rollback_status=COMPLETED" >> $GITHUB_ENV  # ✅ Store output
         break
       elif [ "$STATUS" == "FAILED" ]; then
         echo "⚠️ Deployment failed! Waiting for rollback to complete..."
@@ -17,14 +20,16 @@
         # Wait for rollback to complete
         while true; do
           ROLLBACK_STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].deployments[0].rolloutState" --output text)
-          
+
           if [ "$ROLLBACK_STATUS" == "COMPLETED" ]; then
             echo "✅ Rollback completed successfully"
-            exit 1  # Mark the pipeline as failed after rollback
+            echo "rollback_status=COMPLETED" >> $GITHUB_ENV  # ✅ Store output
+            exit 1  # Mark pipeline as failed but allow re-registration
           fi
 
           if [ "$TIME_ELAPSED" -ge "$MAX_WAIT_TIME" ]; then
             echo "❌ Rollback taking too long! Manual intervention required."
+            echo "rollback_status=FAILED" >> $GITHUB_ENV  # ✅ Store output
             exit 1
           fi
 
@@ -32,15 +37,14 @@
           sleep 15
           TIME_ELAPSED=$((TIME_ELAPSED + 15))
         done
-      else
-        echo "⏳ Waiting for deployment to complete..."
+      fi
+
+      if [ "$TIME_ELAPSED" -ge "$MAX_WAIT_TIME" ]; then
+        echo "❌ Deployment taking too long! Manual intervention required."
+        echo "rollback_status=FAILED" >> $GITHUB_ENV  # ✅ Store output
+        exit 1
       fi
 
       sleep 15
       TIME_ELAPSED=$((TIME_ELAPSED + 15))
-
-      if [ "$TIME_ELAPSED" -ge "$MAX_WAIT_TIME" ]; then
-        echo "❌ Deployment taking too long! Manual intervention required."
-        exit 1
-      fi
     done

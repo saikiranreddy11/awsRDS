@@ -1,4 +1,98 @@
- - name: Wait for ECS Deployment
+name: Build push and deploy the Prism application
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+  actions: read
+  security-events: write
+
+env:
+  IMAGE_TAG: git-${{ github.sha }}
+
+jobs:
+  # Step 1: Build and push image to ECR
+  build-and-push-image-prd:
+    runs-on: arc-rs-nonprod
+    strategy:
+      matrix:
+        service:
+          - frontend
+          - backend
+          - server
+          - queue-worker
+          - event-horizon
+          - event-horizon-nginx
+    steps:
+      - name: Checkout IAC Repo (Current Repo)
+        uses: actions/checkout@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ vars.IAM_ROLE_PRD }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and Push Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ matrix.service }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID_PRD }}
+        run: |
+          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REPOSITORY:$IMAGE_TAG
+
+  # Step 2: Scan Image in ECR (Security)
+  scan-ecr-image-prd:
+    needs: build-and-push-image-prd
+    uses: QDXEnterpriseOrg/bxd-common-reusable-workflows/.github/workflows/wiz-scan-ecr-image.yml@main
+    secrets: inherit
+    with:
+      aws-role-arn: ${{ vars.IAM_ROLE_PRD }}
+      image-uri: ${{ env.IMAGE_TAG }}
+
+  # Step 3: Deploy ECS Service using Terraform
+  deploy-to-ecs-prd:
+    needs: scan-ecr-image-prd
+    runs-on: arc-rs-nonprod
+    strategy:
+      matrix:
+        service:
+          - prism-service
+          - redis
+          - event-horizon
+          - queue-worker-1
+          - queue-worker-2
+    steps:
+      - name: Checkout Terraform Code
+        uses: actions/checkout@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ vars.IAM_ROLE_PRD }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Export Image Tag for Terraform
+        run: echo "TF_VAR_ecr_image_tag=${IMAGE_TAG}" >> $GITHUB_ENV
+
+      - name: Initialize Terraform
+        run: |
+          cd ecs-fargate/${{ matrix.service }}
+          terraform init -reconfigure -backend-config=tfbackends/terraform-prd.tfbackend
+          terraform validate
+          terraform plan -var-file=tfvars/terraform-prd.tfvars
+          terraform apply -var-file=tfvars/terraform-prd.tfvars -auto-approve
+
+      # Step 4: Validate ECS Deployment (Check for rollback)
+      - name: Wait for ECS Deployment
         run: |
           CLUSTER_NAME="dgx-prism-use1-prd-ecs"
           SERVICE_NAME="${{ matrix.service }}"
@@ -16,227 +110,22 @@
             sleep 15
           done
 
-what are we doing here, can you explain clearly please ? why are we comparing with "$STATUS" == "COMPLETED" , "$STATUS" == "FAILED" .
+      # Step 5: Re-register previous task definition if rollback happens
+      - name: Re-register Last Successful Task Definition
+        if: failure()
+        run: |
+          CLUSTER_NAME="dgx-prism-use1-prd-ecs"
+          SERVICE_NAME="${{ matrix.service }}"
 
-now when I eun the aws ecs describe-services --cluster dgx-prism-use1-prd-ecs --services Prism --query "services[0].deployments[0].rolloutState" --output text, the output is COMPLETED . that does mean that the deployment is successfull right ? Iam confused
-ChatGPT said:
-Explanation of the Code:
-The script is a GitHub Actions step that continuously checks the deployment status of an ECS service until it either completes successfully or fails and triggers a rollback.
+          echo "🔄 Detecting rollback and restoring previous task definition..."
+          
+          # Get the last known successful task definition
+          LAST_TASK_DEF=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].taskDefinition" --output text)
 
-Step-by-step breakdown:
-Define ECS Cluster and Service Name:
+          # Re-register the last working task definition
+          aws ecs register-task-definition --cli-input-json file://${SERVICE_NAME}-taskdef.json
 
-sh
-Copy
-Edit
-CLUSTER_NAME="dgx-prism-use1-prd-ecs"
-SERVICE_NAME="${{ matrix.service }}"
-CLUSTER_NAME: Defines the ECS cluster where the service is running.
-SERVICE_NAME: Uses the matrix variable (from the workflow) to determine which service to check.
-Start an infinite loop to monitor the deployment:
+          # Update ECS service to use the restored task definition
+          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $LAST_TASK_DEF
 
-sh
-Copy
-Edit
-while true; do
-The loop will keep running until the deployment completes successfully or fails.
-Fetch the rollout state of the current deployment:
-
-sh
-Copy
-Edit
-STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].deployments[0].rolloutState" --output text)
-This AWS CLI command retrieves the rollout state of the deployment for the given ECS service.
-The rolloutState can be one of:
-COMPLETED → Deployment was successful.
-FAILED → Deployment failed, rollback triggered.
-Other intermediate states (e.g., IN_PROGRESS) → Deployment is still ongoing.
-Check the deployment status:
-
-sh
-Copy
-Edit
-if [ "$STATUS" == "COMPLETED" ]; then
-    echo "✅ Deployment succeeded"
-    break
-elif [ "$STATUS" == "FAILED" ]; then
-    echo "❌ Deployment failed, rollback triggered!"
-    exit 1
-fi
-If STATUS is COMPLETED, it prints ✅ "Deployment succeeded" and exits the loop.
-If STATUS is FAILED, it prints ❌ "Deployment failed, rollback triggered!" and exits with an error (exit 1) to fail the pipeline.
-If the deployment is still ongoing, it prints "⏳ Waiting for deployment to complete...".
-Wait before checking again:
-
-sh
-Copy
-Edit
-sleep 15
-The script waits for 15 seconds before checking again to avoid excessive API calls.
-Answer to Your Question:
-When you run:
-
-sh
-Copy
-Edit
-aws ecs describe-services --cluster dgx-prism-use1-prd-ecs --services Prism --query "services[0].deployments[0].rolloutState" --output text
-and the output is:
-
-nginx
-Copy
-Edit
-COMPLETED
-it does mean that the deployment was successful ✅.
-
-Why Are We Checking COMPLETED and FAILED?
-COMPLETED → Confirms that the new task definition was successfully deployed and is now running.
-FAILED → Indicates that ECS encountered an error, triggered a rollback, and restored the previous working task definition.
-Additional Notes:
-If the rollback was successful, the rolloutState might also return COMPLETED, but it would indicate that it reverted to the previous version, not that the new version worked.
-To check if the rollback happened, you can compare the task definition ARN before and after the deployment.
-Would you like a script to verify if a rollback happened by comparing the task definitions before and after the deployment? 🚀
-
-You said:
-can I see teh roll out state in the console ? for the prism service it has to be FAILED right as the rollback is triggered 
-ChatGPT said:
-Can You See rolloutState in the AWS Console?
-Yes, you can check the rolloutState of your ECS service deployment in the AWS Console by following these steps:
-
-Steps to View Rollout State in AWS Console:
-Go to the AWS Management Console.
-Navigate to ECS (Elastic Container Service).
-Select your ECS Cluster → dgx-prism-use1-prd-ecs.
-Click on Services → Find the Prism service.
-Go to the "Deployments" tab.
-Check the "Status" and "Rollout State" of the ongoing deployment.
-Should Rollout State be FAILED if Rollback Was Triggered?
-Not necessarily. If the rollback completed successfully, the final rolloutState will show as COMPLETED, even if the new deployment failed.
-
-If Deployment Fails & Rollback Begins: rolloutState = FAILED
-If Rollback Completes Successfully: rolloutState = COMPLETED (but with the old task definition)
-If Deployment is Still Ongoing: rolloutState = IN_PROGRESS
-How to Confirm If a Rollback Happened?
-Since rolloutState shows COMPLETED, you need to verify if a rollback happened by checking which task definition is running.
-
-Check the Currently Active Task Definition via Console:
-Go to ECS > Clusters > dgx-prism-use1-prd-ecs.
-Click on Services > Prism.
-In the "Deployments" tab, look for:
-The Task Definition ARN (it should match a previous version if rollback happened).
-If there was a failed deployment attempt.
-Check via CLI:
-Run:
-
-sh
-Copy
-Edit
-aws ecs describe-services --cluster dgx-prism-use1-prd-ecs --services Prism --query "services[0].taskDefinition" --output text
-If this shows an older task definition ARN (instead of the latest one you deployed), then rollback was triggered and completed.
-Next Steps:
-✅ If rolloutState shows COMPLETED, but the task definition is old, rollback succeeded.
-❌ If rolloutState is still FAILED, the rollback might not have worked.
-🔍 Compare current vs. previous task definition ARN to confirm rollback.
-Would you like a script to automatically check if a rollback happened? 🚀
-
-You said:
-is that means that 
-
-if the deployment is successfil teh rollout status is COMPLETED directly and teh deployment is successfill , 
-But if the deplyment is failed , teh rollout status is changed to FAILED first (we have to detect when the status failed and mark the deploymet as fail ?) and then eventually it changed to COMPLTED when teh rollback is complted it then points to the previous inactive stable version right ? and from there we have to handle by activating gthe inactive taskdef right ?
-ChatGPT said:
-Yes, your understanding is almost correct! Let me clarify step-by-step:
-
-Behavior of rolloutState in ECS Deployments
-The rolloutState changes depending on whether the deployment succeeds or fails. Here’s the breakdown:
-
-✅ If the Deployment is Successful:
-ECS starts deploying the new task definition.
-rolloutState = IN_PROGRESS while deploying.
-If deployment passes health checks and runs successfully:
-rolloutState = COMPLETED (Deployment is successful).
-The service runs the new task definition successfully.
-✅ Final state: Deployment is successful, and the rolloutState is COMPLETED.
-
-❌ If the Deployment Fails (Rollback Happens):
-ECS starts deploying the new task definition.
-rolloutState = IN_PROGRESS while deploying.
-Deployment fails due to health check failures, incorrect configurations, etc.
-rolloutState = FAILED (⚠️ At this point, rollback has not yet started).
-Rollback is triggered automatically (if rollback is enabled).
-ECS starts reverting to the previous stable task definition.
-When rollback is finished, the rolloutState changes to COMPLETED.
-The service is now running the previous stable task definition.
-❌ Final state: Deployment failed, rollback completed, but ECS points to the previous (inactive) task definition.
-
-Key Takeaways
-✔ Yes, after a failed deployment, rolloutState first changes to FAILED, then later to COMPLETED after rollback.
-
-✔ Yes, after rollback, ECS reverts to the previous stable task definition, but it remains inactive.
-
-✔ Yes, you need to handle re-registering the inactive task definition manually if necessary.
-
-How to Handle This in Automation (CI/CD Pipeline)
-Detect Deployment Failure:
-Modify your pipeline to check when rolloutState = FAILED, so the pipeline knows the deployment failed.
-
-Rollback Detection:
-If rolloutState changes from FAILED → COMPLETED, then a rollback happened.
-
-Re-register the Previous Task Definition:
-
-Retrieve the previous task definition ARN using:
-sh
-Copy
-Edit
-aws ecs list-task-definitions --status INACTIVE --sort DESC --family-prefix <SERVICE_NAME>
-Re-register it using:
-sh
-Copy
-Edit
-aws ecs register-task-definition --cli-input-json file://taskdef.json
-Update the service to use the stable task definition:
-sh
-Copy
-Edit
-aws ecs update-service --cluster <CLUSTER_NAME> --service <SERVICE_NAME> --task-definition <TASK_DEF_ARN>
-How Should Your Pipeline Handle This?
-Modify Your ECS Deployment Step
-Instead of marking deployment as successful just because rolloutState = COMPLETED, modify it to check if rollback happened.
-
-Example Script (Modify Your CI/CD Pipeline)
-sh
-Copy
-Edit
-CLUSTER_NAME="dgx-prism-use1-prd-ecs"
-SERVICE_NAME="Prism"
-
-while true; do
-  STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].deployments[0].rolloutState" --output text)
-  
-  if [ "$STATUS" == "COMPLETED" ]; then
-    # Check if rollback happened (detect by checking if the task definition is inactive)
-    CURRENT_TASK_DEF=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].taskDefinition" --output text)
-    TASK_DEF_STATUS=$(aws ecs describe-task-definition --task-definition $CURRENT_TASK_DEF --query "taskDefinition.status" --output text)
-
-    if [ "$TASK_DEF_STATUS" == "INACTIVE" ]; then
-      echo "⚠ Rollback completed! The service is running an older task definition."
-      echo "❌ Deployment failed, but rollback succeeded."
-      exit 1
-    else
-      echo "✅ Deployment successful."
-      break
-    fi
-  elif [ "$STATUS" == "FAILED" ]; then
-    echo "❌ Deployment failed, rollback triggered!"
-    exit 1
-  fi
-
-  echo "⏳ Waiting for deployment to complete..."
-  sleep 15
-done
-Final Answer
-Yes, rolloutState changes from FAILED → COMPLETED when rollback is done.
-Yes, after rollback, ECS reverts to the last stable task definition, which might be INACTIVE.
-You need to handle re-registering the inactive task definition manually or via a script.
-Modify your pipeline to detect rollback and handle task definition re-registration.
-Would you like me to help automate the task definition re-registration in your pipeline? 🚀
+          echo "✅ Task definition re-registered successfully"

@@ -1,5 +1,1 @@
-aws ecs register-task-definition --cli-input-json file://new-taskdef.json
-
-NEW_TASK_DEF_ARN=$(aws ecs list-task-definitions --status ACTIVE --sort DESC --family-prefix prism-service-taskdef --query "taskDefinitionArns[0]" --output text)
-
-aws ecs update-service --cluster <CLUSTER_NAME> --service <SERVICE_NAME> --task-definition $NEW_TASK_DEF_ARN
+aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].deployments[0].rolloutState" --output text

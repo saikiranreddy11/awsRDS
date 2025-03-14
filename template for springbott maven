@@ -1,131 +1,46 @@
-name: Build push and deploy the Prism application
+- name: Wait for ECS Deployment
+  run: |
+    CLUSTER_NAME="dgx-prism-use1-prd-ecs"
+    SERVICE_NAME="${{ matrix.service }}"
+    MAX_WAIT_TIME=600  # 10 minutes timeout
+    TIME_ELAPSED=0
 
-on:
-  workflow_dispatch:
+    while true; do
+      STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].deployments[0].rolloutState" --output text)
 
-permissions:
-  contents: read
-  id-token: write
-  packages: write
-  actions: read
-  security-events: write
-
-env:
-  IMAGE_TAG: git-${{ github.sha }}
-
-jobs:
-  # Step 1: Build and push image to ECR
-  build-and-push-image-prd:
-    runs-on: arc-rs-nonprod
-    strategy:
-      matrix:
-        service:
-          - frontend
-          - backend
-          - server
-          - queue-worker
-          - event-horizon
-          - event-horizon-nginx
-    steps:
-      - name: Checkout IAC Repo (Current Repo)
-        uses: actions/checkout@v2
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: ${{ vars.IAM_ROLE_PRD }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v1
-
-      - name: Build and Push Docker Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ matrix.service }}
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
-          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID_PRD }}
-        run: |
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REPOSITORY:$IMAGE_TAG
-
-  # Step 2: Scan Image in ECR (Security)
-  scan-ecr-image-prd:
-    needs: build-and-push-image-prd
-    uses: QDXEnterpriseOrg/bxd-common-reusable-workflows/.github/workflows/wiz-scan-ecr-image.yml@main
-    secrets: inherit
-    with:
-      aws-role-arn: ${{ vars.IAM_ROLE_PRD }}
-      image-uri: ${{ env.IMAGE_TAG }}
-
-  # Step 3: Deploy ECS Service using Terraform
-  deploy-to-ecs-prd:
-    needs: scan-ecr-image-prd
-    runs-on: arc-rs-nonprod
-    strategy:
-      matrix:
-        service:
-          - prism-service
-          - redis
-          - event-horizon
-          - queue-worker-1
-          - queue-worker-2
-    steps:
-      - name: Checkout Terraform Code
-        uses: actions/checkout@v2
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: ${{ vars.IAM_ROLE_PRD }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Export Image Tag for Terraform
-        run: echo "TF_VAR_ecr_image_tag=${IMAGE_TAG}" >> $GITHUB_ENV
-
-      - name: Initialize Terraform
-        run: |
-          cd ecs-fargate/${{ matrix.service }}
-          terraform init -reconfigure -backend-config=tfbackends/terraform-prd.tfbackend
-          terraform validate
-          terraform plan -var-file=tfvars/terraform-prd.tfvars
-          terraform apply -var-file=tfvars/terraform-prd.tfvars -auto-approve
-
-      # Step 4: Validate ECS Deployment (Check for rollback)
-      - name: Wait for ECS Deployment
-        run: |
-          CLUSTER_NAME="dgx-prism-use1-prd-ecs"
-          SERVICE_NAME="${{ matrix.service }}"
-
-          while true; do
-            STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].deployments[0].rolloutState" --output text)
-            if [ "$STATUS" == "COMPLETED" ]; then
-              echo "✅ Deployment succeeded"
-              break
-            elif [ "$STATUS" == "FAILED" ]; then
-              echo "❌ Deployment failed, rollback triggered!"
-              exit 1
-            fi
-            echo "⏳ Waiting for deployment to complete..."
-            sleep 15
-          done
-
-      # Step 5: Re-register previous task definition if rollback happens
-      - name: Re-register Last Successful Task Definition
-        if: failure()
-        run: |
-          CLUSTER_NAME="dgx-prism-use1-prd-ecs"
-          SERVICE_NAME="${{ matrix.service }}"
-
-          echo "🔄 Detecting rollback and restoring previous task definition..."
+      if [ "$STATUS" == "COMPLETED" ]; then
+        echo "✅ Deployment (or rollback) completed successfully"
+        break
+      elif [ "$STATUS" == "FAILED" ]; then
+        echo "⚠️ Deployment failed! Waiting for rollback to complete..."
+        
+        # Wait for rollback to complete
+        while true; do
+          ROLLBACK_STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].deployments[0].rolloutState" --output text)
           
-          # Get the last known successful task definition
-          LAST_TASK_DEF=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].taskDefinition" --output text)
+          if [ "$ROLLBACK_STATUS" == "COMPLETED" ]; then
+            echo "✅ Rollback completed successfully"
+            exit 1  # Mark the pipeline as failed after rollback
+          fi
 
-          # Re-register the last working task definition
-          aws ecs register-task-definition --cli-input-json file://${SERVICE_NAME}-taskdef.json
+          if [ "$TIME_ELAPSED" -ge "$MAX_WAIT_TIME" ]; then
+            echo "❌ Rollback taking too long! Manual intervention required."
+            exit 1
+          fi
 
-          # Update ECS service to use the restored task definition
-          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $LAST_TASK_DEF
+          echo "⏳ Rollback in progress..."
+          sleep 15
+          TIME_ELAPSED=$((TIME_ELAPSED + 15))
+        done
+      else
+        echo "⏳ Waiting for deployment to complete..."
+      fi
 
-          echo "✅ Task definition re-registered successfully"
+      sleep 15
+      TIME_ELAPSED=$((TIME_ELAPSED + 15))
+
+      if [ "$TIME_ELAPSED" -ge "$MAX_WAIT_TIME" ]; then
+        echo "❌ Deployment taking too long! Manual intervention required."
+        exit 1
+      fi
+    done

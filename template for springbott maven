@@ -1,39 +1,96 @@
-- name: Re-register Last Successful Task Definition
-  if: failure() && env.rollback_status == 'COMPLETED'
-  run: |
-    CLUSTER_NAME="dgx-prism-use1-prd-ecs"
-    SERVICE_NAME="${{ matrix.service }}"
-    
-    echo "🔄 Detecting rollback and restoring previous task definition..."
+name: Deploy to ECS
 
-    # Get the last known inactive task definition ARN
-    LAST_TASK_DEF_ARN=$(aws ecs list-task-definitions --status INACTIVE --sort DESC \
-      --family-prefix ${SERVICE_NAME}-taskdef --query "taskDefinitionArns[0]" --output text)
+on:
+  push:
+    branches:
+      - main  # Change to your branch
 
-    if [ "$LAST_TASK_DEF_ARN" == "None" ]; then
-      echo "⚠️ No previous inactive task definition found, skipping recovery!"
-      exit 1
-    fi
+jobs:
+  deploy-to-ecs-prd:
+    needs: scan-ecr-image-prd
+    runs-on: arc-rs-nonprod
+    strategy:
+      matrix:
+        service:
+          - prism-service
+          - redis
+          - event-horizon
+          - queue-worker-1
+          - queue-worker-2
 
-    # Fetch the last successful task definition JSON, remove unnecessary attributes
-    aws ecs describe-task-definition --task-definition $LAST_TASK_DEF_ARN --query "taskDefinition" > taskdef.json
+    steps:
+      - name: Checkout Terraform Code
+        uses: actions/checkout@v2
 
-    cat taskdef.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, 
-      .compatibilities, .registeredBy, .registeredAt, .deregisteredBy, .deregisteredAt)' > new-taskdef.json
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ vars.IAM_ROLE_PRD }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-    # Register the cleaned-up task definition
-    aws ecs register-task-definition --cli-input-json file://new-taskdef.json
+      - name: Capture Old Task Definition
+        id: get-old-task-def
+        run: |
+          OLD_TASK_DEF=$(aws ecs describe-services --cluster ${{ env.CLUSTER_NAME }} --services ${{ matrix.service }} --query "services[0].taskDefinition" --output text)
+          echo "OLD_TASK_DEF=$OLD_TASK_DEF" >> $GITHUB_ENV
 
-    # Fetch the newly registered active task definition ARN
-    NEW_TASK_DEF_ARN=$(aws ecs list-task-definitions --status ACTIVE --sort DESC \
-      --family-prefix ${SERVICE_NAME}-taskdef --query "taskDefinitionArns[0]" --output text)
+      - name: Export Image Tag for Terraform
+        run: echo "TF_VAR_ecr_image_tag=${{ IMAGE_TAG }}" >> $GITHUB_ENV
 
-    if [ "$NEW_TASK_DEF_ARN" == "None" ]; then
-      echo "❌ Failed to re-register the task definition!"
-      exit 1
-    fi
+      - name: Deploy ECS Service using Terraform
+        run: |
+          cd ecs-fargate/${{ matrix.service }}
+          terraform init -reconfigure -backend-config=tfbackends/terraform-prd.tfbackend
+          terraform validate
+          terraform plan -var-file=tfvars/terraform-prd.tfvars
+          terraform apply -var-file=tfvars/terraform-prd.tfvars -auto-approve
 
-    # Update ECS service to use the restored task definition
-    aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $NEW_TASK_DEF_ARN
+      - name: Wait for ECS Deployment
+        id: wait-for-deployment
+        run: |
+          CLUSTER_NAME=${{ env.CLUSTER_NAME }}
+          SERVICE_NAME="${{ matrix.service }}"
+          MAX_WAIT_TIME=900  # 15 minutes timeout
+          TIME_ELAPSED=0
 
-    echo "✅ Task definition re-registered successfully and updated in ECS service."
+          while true; do
+            STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].deployments[0].rolloutState" --output text)
+            echo "Current rollout state: $STATUS"
+
+            if [[ "$STATUS" == "COMPLETED" ]]; then
+              echo "Deployment (or rollback) completed successfully."
+              break
+            fi
+
+            if [[ "$STATUS" == "IN_PROGRESS" ]]; then
+              echo "Deployment still in progress..."
+            fi
+
+            if [[ "$TIME_ELAPSED" -ge "$MAX_WAIT_TIME" ]]; then
+              echo "Deployment taking too long! Marking as failed."
+              exit 1
+            fi
+
+            sleep 15
+            TIME_ELAPSED=$((TIME_ELAPSED + 15))
+          done
+
+      - name: Validate Deployment Task Definition
+        run: |
+          NEW_TASK_DEF=$(aws ecs describe-services --cluster ${{ env.CLUSTER_NAME }} --services ${{ matrix.service }} --query "services[0].taskDefinition" --output text)
+
+          echo "Old Task Definition: $OLD_TASK_DEF"
+          echo "New Task Definition: $NEW_TASK_DEF"
+
+          if [[ "$NEW_TASK_DEF" == "$OLD_TASK_DEF" ]]; then
+            echo "🚨 Deployment failed and was rolled back!"
+            exit 1
+          else
+            echo "✅ Deployment successful with new task definition."
+          fi
+
+      - name: Deregister Failed Task Definition (If Rollback Detected)
+        if: failure()
+        run: |
+          echo "Rolling back: Deregistering failed task definition..."
+          aws ecs deregister-task-definition --task-definition $NEW_TASK_DEF

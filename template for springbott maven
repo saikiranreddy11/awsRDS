@@ -1,1 +1,1 @@
-terraform import module.vpc.module.vpc.aws_route_table_association.routed[0] rtb-0cd6d273cac2bd639
+terraform import module.vpc.module.resolver_rule_associations.aws_route53_resolver_rule_association.this["rslvr-rr-17bf38d5e4b14c22b"] rslvr-rr-17bf38d5e4b14c22b/vpc-0d84a1a23aa74a843

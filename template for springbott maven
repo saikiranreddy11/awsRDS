@@ -1,1 +1,10 @@
-terraform import module.vpc.module.resolver_rule_associations.aws_route53_resolver_rule_association.this["rslvr-rr-17bf38d5e4b14c22b"] rslvr-rr-17bf38d5e4b14c22b/vpc-0d84a1a23aa74a843
+aws ec2 describe-network-interfaces --filters "Name=subnet-id,Values=subnet-0bda73c80F016558e"
+
+
+aws ec2 delete-network-interface --network-interface-id <eni-id>
+
+
+aws ec2 describe-route-tables --filters "Name=association.subnet-id,Values=subnet-0bda73c80F016558e"
+
+
+aws ec2 disassociate-route-table --association-id <association-id>

@@ -1,1 +1,4 @@
-terraform import module.vpc.module.route53_zones.aws_route53_zone.this["prism.prd.aws.gdx.com"] Z201794133DWS6830D38
+terraform import -var-file=tfvars/terraform-prd.tfvars module.vpc.module.vpc.aws_ec2_transit_gateway_vpc_attachment.tg_vpc_attachment tgw-02bf12d218542565a
+
+terraform import -var-file=tfvars/terraform-prd.tfvars module.vpc.module.vpc.aws_route_table_association.routed[0] rtb-0cd6d273cac2bd639
+

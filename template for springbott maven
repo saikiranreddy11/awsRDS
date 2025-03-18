@@ -1,31 +1,4 @@
-deploy-to-ecs-prd:
-  needs: scan-ecr-image-prd
-  runs-on: arc-rs-nonprod
-  strategy:
-    matrix:
-      service:
-        - prism-service
-        - redis
-        - event-horizon
-        - queue-worker-1
-        - queue-worker-2
-  steps:
-    - name: Checkout Terraform Code
-      uses: actions/checkout@v2
-
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        role-to-assume: ${{ vars.IAM_ROLE_PRD }}
-        aws-region: ${{ vars.AWS_REGION }}
-
-    - name: Export Image Tag for Terraform
-      run: echo "TF_VAR_ecr_image_tag=${IMAGE_TAG}" >> $GITHUB_ENV
-
-    - name: Initialize Terraform
-      run: |
-        cd ecs-fargate/${{ matrix.service }}
-        terraform init -reconfigure -backend-config=tfbackends/terraform-prd.tfbackend
-        terraform validate
-        terraform plan -var-file=tfvars/terraform-prd.tfvars
-        terraform apply -var-file=tfvars/terraform-prd.tfvars -auto-approve
+locals {
+  target_group_arn   = data.terraform_remote_state.compute.outputs.alb_target_groups["nginx-tg"].arn
+  security_group_id  = data.terraform_remote_state.compute.outputs.alb_security_group_id
+}

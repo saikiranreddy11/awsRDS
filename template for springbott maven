@@ -1,2 +1,1 @@
-terraform import module.vpc.module.vpc.aws_subnet.non_routed["data.10.116.64.160/27.us-east-1b"] subnet-xxxxxxxx
-terraform import module.vpc.module.vpc.aws_subnet.non_routed["data.10.116.64.128/27.us-east-1a"] subnet-yyyyyyyy
+terraform import module.vpc.module.vpc.aws_route_table_association.routed[0] rtb-0cd6d273cac2bd639

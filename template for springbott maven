@@ -1,4 +1,1 @@
-locals {
-  target_group_arn   = data.terraform_remote_state.compute.outputs.alb_target_groups["nginx-tg"].arn
-  security_group_id  = data.terraform_remote_state.compute.outputs.alb_security_group_id
-}
+terraform import module.vpc.module.route53_zones.aws_route53_zone.this["prism.prd.aws.gdx.com"] Z201794133DWS6830D38

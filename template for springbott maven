@@ -1,2 +1,2 @@
-terraform import module.vpc.module.vpc.aws_route_table_association.routed[1] rtbassoc-0c2a794c489731fff
-terraform import module.vpc.module.vpc.aws_route_table_association.routed[2] rtbassoc-058a6cd139a323abe
+terraform import module.vpc.module.vpc.aws_route_table_association.routed[1] subnet-085661c6756275155/rtb-03009184273797aa2
+terraform import module.vpc.module.vpc.aws_route_table_association.routed[2] subnet-0a003546255f7d095/rtb-03009184273797aa2

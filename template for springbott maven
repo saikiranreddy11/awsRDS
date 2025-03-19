@@ -1,2 +1,2 @@
-terraform import module.vpc.module.vpc.aws_route_table_association.routed[1] subnet-085661c6756275155/rtb-03009184273797aa2
-terraform import module.vpc.module.vpc.aws_route_table_association.routed[2] subnet-0a003546255f7d095/rtb-03009184273797aa2
+ALTER USER 'gateway_user'@'%' IDENTIFIED BY 'New@Secure_Pass1';
+ALTER USER 'gateway_admin'@'%' IDENTIFIED BY 'New@Secure_Pass2';

@@ -1,34 +1,48 @@
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to Deploy'
+        required: true
+      commit_sha:
+        description: 'Commit SHA to deploy'
+        required: true
+      environment:
+        description: 'Select the Environment to Deploy'
+        type: choice
+        options:
+          - dev
+          - qa
+          - staging
+          - prod
+        required: true
+      dry_run:
+        description: 'Enable Dry-Run Mode?'
+        type: boolean
+        required: false
+        default: false
 
-Angular Project Tasks
-Identify the basic structure for the Angular project
-Identify the package manager (npm/yarn) and set up dependencies
-Configure angular.json and package.json
-Validate the project setup from the Local VDI
-Validate the project setup from the remote server
-Set up environment-specific configurations (environment.ts)
-Implement a GitHub Actions pipeline to build the Angular project
-Develop a GitHub Actions pipeline to deploy the built project to a static hosting service (e.g., S3, Firebase Hosting, or GitHub Pages)
-Implement a CI/CD pipeline for linting and unit testing using Jest/Karma
-Implement a GitHub Actions pipeline to run end-to-end tests using Cypress
-Research GitFlow/TBD - Document Approach
-Write CI/CD pipelines for GitFlow/TBD
-Inject GitFlow CI/CD into an existing Angular project template
-Add a README.md to use this template
-Planned Activities
-Refine templates based on feedback/Discuss compatibility for all projects
-Research GitHub OIDC setup
-Node.js Project Tasks
-Identify the basic structure for the Node.js project (Express/NestJS)
-Identify the package manager (npm/yarn) and set up dependencies
-Configure package.json and set up required scripts (start, build, test)
-Validate the project setup from the Local VDI
-Validate the project setup from the remote server
-Set up environment variables and configurations (.env, config.js)
-Develop a GitHub Actions pipeline to build and test the Node.js application
-Implement a CI/CD pipeline for linting and unit testing using Jest/Mocha
-Develop a GitHub Actions pipeline to containerize the Node.js application using Docker
-Implement a GitHub Actions pipeline to deploy the application to a cloud environment (AWS Lambda, ECS, or Kubernetes)
-Research GitFlow/TBD - Document Approach
-Write CI/CD pipelines for GitFlow/TBD
-Inject GitFlow CI/CD into an existing Node.js project template
-Add a README.md to use this template
+
+
+- name: Deploy to Kubernetes using Helm
+  env:
+    ECR_REPOSITORY: ${{ steps.artifact_info.outputs.ecr_repo }}
+    IMAGE_TAG: ${{ steps.artifact_info.outputs.image_tag }}
+    NAMESPACE: ${{ inputs.environment }}  # Dynamic Namespace
+  run: |
+    echo "Deploying image: $ECR_REPOSITORY:$IMAGE_TAG to namespace $NAMESPACE"
+
+    # Check if dry-run mode is enabled
+    if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+      DRY_RUN_FLAGS="--dry-run --debug"
+      echo "Running in Dry-Run Mode..."
+    else
+      DRY_RUN_FLAGS=""
+    fi
+
+    # Run Helm with or without dry-run
+    helm upgrade --install my-app ./charts \
+      --namespace $NAMESPACE \
+      --set image.tag=$IMAGE_TAG \
+      --set image.repository=$ECR_REPOSITORY \
+      $DRY_RUN_FLAGS

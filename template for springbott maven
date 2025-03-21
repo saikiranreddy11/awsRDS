@@ -1,49 +1,21 @@
-3. CI/CD Workflow (GitHub Actions)
+5. Step-by-Step Deployment Process
 
-CI Pipeline: Build and Push Workflow
+A developer creates a feature/* branch from develop and implements changes.
 
-This workflow automates the process of building a Docker image from the Spring Boot Maven project, tagging it, and pushing it to AWS Elastic Container Registry (ECR). It also prepares deployment metadata.
+The developer manually triggers the CI workflow to build and push the Docker image.
 
-How It Works:
+Once the feature is tested, it is merged into develop.
 
-It is triggered automatically on pull requests to main or manually using workflow dispatch.
+A release/* branch is created from develop for QA validation.
 
-It fetches the source code based on the trigger context.
+The release image is deployed to the QA environment using the deployment workflow.
 
-The workflow configures AWS credentials securely using role-based access.
+If issues are found, a bugfix/* branch is created from the release branch and redeployed.
 
-It logs into AWS ECR to prepare for image push.
+Once QA is complete, the same release branch is deployed to the staging environment.
 
-It dynamically determines the current branch being built.
+After staging verification, the release branch is merged into main.
 
-The Docker image is built and tagged using the Git commit ID for traceability.
+The main branch is deployed to the production environment.
 
-The image is then pushed to ECR.
-
-A JSON file containing the repository URL, branch, and image tag is generated.
-
-This metadata file is uploaded to an AWS S3 bucket to support the CD pipeline.
-
-This ensures that every successful build has a corresponding image and metadata file that can be used to deploy the application in any environment.
-
-CD Pipeline: Deployment Workflow
-
-This workflow is responsible for deploying the built Docker image to the correct Kubernetes environment using Helm.
-
-How It Works:
-
-It is triggered manually from the GitHub Actions UI.
-
-The user selects the branch, commit SHA, and target environment.
-
-The workflow validates whether the branch is allowed to deploy to the selected environment based on GitFlow rules.
-
-It retrieves the image metadata file from the S3 bucket.
-
-It reads the image tag and repository information from the metadata.
-
-Based on the selected environment, it sets the appropriate Kubernetes namespace.
-
-It executes a Helm upgrade or install command to deploy the application into the cluster.
-
-This workflow enforces branch-environment mappings, making sure that, for example, only release branches are deployed to QA or staging, and only main or hotfix branches can be deployed to produ
+If any production issues arise, a hotfix/* branch is created from main, and the fix is deployed.

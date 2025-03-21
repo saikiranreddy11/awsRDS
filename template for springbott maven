@@ -1,151 +1,83 @@
-name: Build, Push and Deploy the Prism Application
+Spring Boot Maven Template with GitFlow-Based CI/CD
 
-on:
-  push:
-    branches:
-      - dev
-  pull_request:
-    branches:
-      - stg
-      - uat
-      - prod
-    types:
-      - closed  # Only trigger when PR is merged
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "Select Environment to Deploy"
-        required: true
-        default: "dev"
-        type: choice
-        options:
-          - dev
-          - stg
-          - uat
-          - prod
+1. Introduction
 
-permissions:
-  contents: read
-  id-token: write
-  packages: write
-  actions: read
-  security-events: write
+Purpose of This Template
 
-env:
-  IMAGE_TAG: git-${{ github.sha }}
+This template provides a standardized project structure for Spring Boot applications using Maven, enabling teams to develop, test, and deploy microservices efficiently. The template integrates GitFlow branching strategy and automated CI/CD pipelines to streamline the software development lifecycle.
 
-jobs:
-  determine-environment:
-    runs-on: ubuntu-latest
-    outputs:
-      env: ${{ steps.set-env.outputs.ENVIRONMENT }}
-      aws_account: ${{ steps.set-env.outputs.AWS_ACCOUNT }}
-      ecr_registry: ${{ steps.set-env.outputs.ECR_REGISTRY }}
-    steps:
-      - name: Set Environment Variables
-        id: set-env
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            BRANCH="${{ github.event.inputs.environment }}"
-          elif [[ "${{ github.event_name }}" == "push" ]]; then
-            BRANCH="dev"
-          elif [[ "${{ github.event_name }}" == "pull_request" && github.event.pull_request.merged == true ]]; then
-            BRANCH="${{ github.base_ref }}"
-          else
-            echo "Invalid trigger"
-            exit 1
-          fi
+Goals of This Template
 
-          case "$BRANCH" in
-            dev)
-              echo "ENVIRONMENT=DEV" >> $GITHUB_ENV
-              echo "AWS_ACCOUNT=123456789012" >> $GITHUB_ENV
-              echo "ECR_REGISTRY=my-ecr-dev" >> $GITHUB_ENV
-              ;;
-            stg)
-              echo "ENVIRONMENT=STG" >> $GITHUB_ENV
-              echo "AWS_ACCOUNT=234567890123" >> $GITHUB_ENV
-              echo "ECR_REGISTRY=my-ecr-stg" >> $GITHUB_ENV
-              ;;
-            uat)
-              echo "ENVIRONMENT=UAT" >> $GITHUB_ENV
-              echo "AWS_ACCOUNT=345678901234" >> $GITHUB_ENV
-              echo "ECR_REGISTRY=my-ecr-uat" >> $GITHUB_ENV
-              ;;
-            prod)
-              echo "ENVIRONMENT=PROD" >> $GITHUB_ENV
-              echo "AWS_ACCOUNT=456789012345" >> $GITHUB_ENV
-              echo "ECR_REGISTRY=my-ecr-prod" >> $GITHUB_ENV
-              ;;
-            *)
-              echo "Unknown environment"
-              exit 1
-              ;;
-          esac
+Standardized Repository Structure: Ensures consistency across projects for easier onboarding.
 
-  build-and-push-image:
-    needs: determine-environment
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - service: "frontend"
-            repository: ${{ vars.ECR_REPO_PRISM_FRONTEND }}
-          - service: "backend"
-            repository: ${{ vars.ECR_REPO_PRISM_BACKEND }}
-          - service: "server"
-            repository: ${{ vars.ECR_REPO_PRISM_NGINX }}
-          - service: "queue-worker"
-            repository: ${{ vars.ECR_REPO_QUEUE_WORKER }}
-          - service: "event-horizon"
-            repository: ${{ vars.ECR_REPO_EVENT_HORIZON }}
-          - service: "event-horizon-nginx"
-            repository: ${{ vars.ECR_REPO_EVENT_HORIZON_NGINX }}
+Automated CI/CD Pipeline: Reduces manual intervention and speeds up deployments.
 
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
+GitFlow Branching Strategy: Enforces structured collaboration and controlled releases.
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT }}:role/deployment-role
-          aws-region: us-east-1
+Kubernetes Deployment Using Helm: Simplifies deployment across environments.
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+Automated Metadata Tracking: Stores build artifacts and metadata in AWS S3 for traceability.
 
-      - name: Build and Push Docker Image for ${{ matrix.service }}
-        run: |
-          docker build -t ${{ matrix.repository }}:${{ env.IMAGE_TAG }} .
-          docker tag ${{ matrix.repository }}:${{ env.IMAGE_TAG }} ${{ steps.login-ecr.outputs.registry }}/${{ matrix.repository }}:${{ env.IMAGE_TAG }}
-          docker push ${{ steps.login-ecr.outputs.registry }}/${{ matrix.repository }}:${{ env.IMAGE_TAG }}
+Processes Automated by This Template
 
-  deploy-to-ecs:
-    needs: build-and-push-image
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: [frontend, backend, server, queue-worker, event-horizon, event-horizon-nginx]
+Code Integration & Build Automation: The CI pipeline builds and pushes Docker images to AWS ECR when code is merged.
 
-    steps:
-      - name: Checkout Terraform Code
-        uses: actions/checkout@v2
+Environment-Specific Deployments: The CD pipeline ensures the right branches are deployed to the correct environments.
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT }}:role/deployment-role
-          aws-region: us-east-1
+Branch Validation for Deployments: Ensures only the right branches can be deployed to their respective environments.
 
-      - name: Export Image Tag for Terraform
-        run: echo "TF_VAR_ecr_image_tag=${{ env.IMAGE_TAG }}" >> $GITHUB_ENV
+Kubernetes Deployment: Uses Helm charts to deploy the Spring Boot application in dev, qa, staging, and prod.
 
-      - name: Initialize Terraform and Deploy
-        run: |
-          cd ecs-fargate/${{ matrix.service }}
-          terraform init -reconfigure -backend-config=tfbackend-${{ env.ENVIRONMENT }}
-          terraform validate
-          terraform plan -var-file=vars/terraform-${{ env.ENVIRONMENT }}.tfvars
-          terraform apply -var-file=vars/terraform-${{ env.ENVIRONMENT }}.tfvars -auto-approve
+Log and Metadata Management: Stores image tags and deployment metadata for traceability.
+
+2. GitFlow Branching Strategy
+
+Core Branches:
+
+main → Represents the stable, production-ready code deployed to the live environment.
+
+develop → Represents the latest development code and integrates feature branches. Developers merge new changes into develop before moving to the next phase.
+
+Supporting Branches:
+
+feature/ → Created off develop for implementing new features or enhancements. After development, it is merged back into develop.
+
+release/ → Created off develop to prepare for a release. It allows stabilization before deployment to production.
+
+bugfix/ → Created off release to fix bugs found during QA or staging testing. These are merged back into release and develop.
+
+hotfix/ → Created off main for urgent production fixes. After the fix, it is merged back into both main and develop to prevent regression.
+
+Branch-to-Environment Mapping
+
+Branch Type
+
+Environment
+
+Purpose
+
+develop, feature/*
+
+dev
+
+Active development and integration testing
+
+release/*, bugfix/*
+
+qa
+
+QA validation before staging deployment
+
+release/*, bugfix/*
+
+staging
+
+Final verification before production
+
+main, hotfix/*
+
+prod
+
+Stable, production-ready deployment
+
+3. CI/CD Workflow (GitHub Actions)

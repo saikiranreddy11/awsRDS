@@ -1,83 +1,49 @@
-Spring Boot Maven Template with GitFlow-Based CI/CD
-
-1. Introduction
-
-Purpose of This Template
-
-This template provides a standardized project structure for Spring Boot applications using Maven, enabling teams to develop, test, and deploy microservices efficiently. The template integrates GitFlow branching strategy and automated CI/CD pipelines to streamline the software development lifecycle.
-
-Goals of This Template
-
-Standardized Repository Structure: Ensures consistency across projects for easier onboarding.
-
-Automated CI/CD Pipeline: Reduces manual intervention and speeds up deployments.
-
-GitFlow Branching Strategy: Enforces structured collaboration and controlled releases.
-
-Kubernetes Deployment Using Helm: Simplifies deployment across environments.
-
-Automated Metadata Tracking: Stores build artifacts and metadata in AWS S3 for traceability.
-
-Processes Automated by This Template
-
-Code Integration & Build Automation: The CI pipeline builds and pushes Docker images to AWS ECR when code is merged.
-
-Environment-Specific Deployments: The CD pipeline ensures the right branches are deployed to the correct environments.
-
-Branch Validation for Deployments: Ensures only the right branches can be deployed to their respective environments.
-
-Kubernetes Deployment: Uses Helm charts to deploy the Spring Boot application in dev, qa, staging, and prod.
-
-Log and Metadata Management: Stores image tags and deployment metadata for traceability.
-
-2. GitFlow Branching Strategy
-
-Core Branches:
-
-main → Represents the stable, production-ready code deployed to the live environment.
-
-develop → Represents the latest development code and integrates feature branches. Developers merge new changes into develop before moving to the next phase.
-
-Supporting Branches:
-
-feature/ → Created off develop for implementing new features or enhancements. After development, it is merged back into develop.
-
-release/ → Created off develop to prepare for a release. It allows stabilization before deployment to production.
-
-bugfix/ → Created off release to fix bugs found during QA or staging testing. These are merged back into release and develop.
-
-hotfix/ → Created off main for urgent production fixes. After the fix, it is merged back into both main and develop to prevent regression.
-
-Branch-to-Environment Mapping
-
-Branch Type
-
-Environment
-
-Purpose
-
-develop, feature/*
-
-dev
-
-Active development and integration testing
-
-release/*, bugfix/*
-
-qa
-
-QA validation before staging deployment
-
-release/*, bugfix/*
-
-staging
-
-Final verification before production
-
-main, hotfix/*
-
-prod
-
-Stable, production-ready deployment
-
 3. CI/CD Workflow (GitHub Actions)
+
+CI Pipeline: Build and Push Workflow
+
+This workflow automates the process of building a Docker image from the Spring Boot Maven project, tagging it, and pushing it to AWS Elastic Container Registry (ECR). It also prepares deployment metadata.
+
+How It Works:
+
+It is triggered automatically on pull requests to main or manually using workflow dispatch.
+
+It fetches the source code based on the trigger context.
+
+The workflow configures AWS credentials securely using role-based access.
+
+It logs into AWS ECR to prepare for image push.
+
+It dynamically determines the current branch being built.
+
+The Docker image is built and tagged using the Git commit ID for traceability.
+
+The image is then pushed to ECR.
+
+A JSON file containing the repository URL, branch, and image tag is generated.
+
+This metadata file is uploaded to an AWS S3 bucket to support the CD pipeline.
+
+This ensures that every successful build has a corresponding image and metadata file that can be used to deploy the application in any environment.
+
+CD Pipeline: Deployment Workflow
+
+This workflow is responsible for deploying the built Docker image to the correct Kubernetes environment using Helm.
+
+How It Works:
+
+It is triggered manually from the GitHub Actions UI.
+
+The user selects the branch, commit SHA, and target environment.
+
+The workflow validates whether the branch is allowed to deploy to the selected environment based on GitFlow rules.
+
+It retrieves the image metadata file from the S3 bucket.
+
+It reads the image tag and repository information from the metadata.
+
+Based on the selected environment, it sets the appropriate Kubernetes namespace.
+
+It executes a Helm upgrade or install command to deploy the application into the cluster.
+
+This workflow enforces branch-environment mappings, making sure that, for example, only release branches are deployed to QA or staging, and only main or hotfix branches can be deployed to produ

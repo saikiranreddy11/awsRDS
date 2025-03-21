@@ -1,9 +1,151 @@
-module "ecs_service" {
-  source = "git::https://github.com/QDXEnterpriseOrg/dso-terraform-aws-ecs.git//modules/service?ref=master"
+name: Build, Push and Deploy the Prism Application
 
-  # Pass required variables based on module's documentation
-  cluster_name  = "my-cluster"
-  service_name  = "my-service"
-  image_url     = "123456789.dkr.ecr.us-east-1.amazonaws.com/my-image:latest"
-  container_port = 8080
-}
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - stg
+      - uat
+      - prod
+    types:
+      - closed  # Only trigger when PR is merged
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Select Environment to Deploy"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - stg
+          - uat
+          - prod
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+  actions: read
+  security-events: write
+
+env:
+  IMAGE_TAG: git-${{ github.sha }}
+
+jobs:
+  determine-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.set-env.outputs.ENVIRONMENT }}
+      aws_account: ${{ steps.set-env.outputs.AWS_ACCOUNT }}
+      ecr_registry: ${{ steps.set-env.outputs.ECR_REGISTRY }}
+    steps:
+      - name: Set Environment Variables
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            BRANCH="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            BRANCH="dev"
+          elif [[ "${{ github.event_name }}" == "pull_request" && github.event.pull_request.merged == true ]]; then
+            BRANCH="${{ github.base_ref }}"
+          else
+            echo "Invalid trigger"
+            exit 1
+          fi
+
+          case "$BRANCH" in
+            dev)
+              echo "ENVIRONMENT=DEV" >> $GITHUB_ENV
+              echo "AWS_ACCOUNT=123456789012" >> $GITHUB_ENV
+              echo "ECR_REGISTRY=my-ecr-dev" >> $GITHUB_ENV
+              ;;
+            stg)
+              echo "ENVIRONMENT=STG" >> $GITHUB_ENV
+              echo "AWS_ACCOUNT=234567890123" >> $GITHUB_ENV
+              echo "ECR_REGISTRY=my-ecr-stg" >> $GITHUB_ENV
+              ;;
+            uat)
+              echo "ENVIRONMENT=UAT" >> $GITHUB_ENV
+              echo "AWS_ACCOUNT=345678901234" >> $GITHUB_ENV
+              echo "ECR_REGISTRY=my-ecr-uat" >> $GITHUB_ENV
+              ;;
+            prod)
+              echo "ENVIRONMENT=PROD" >> $GITHUB_ENV
+              echo "AWS_ACCOUNT=456789012345" >> $GITHUB_ENV
+              echo "ECR_REGISTRY=my-ecr-prod" >> $GITHUB_ENV
+              ;;
+            *)
+              echo "Unknown environment"
+              exit 1
+              ;;
+          esac
+
+  build-and-push-image:
+    needs: determine-environment
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: "frontend"
+            repository: ${{ vars.ECR_REPO_PRISM_FRONTEND }}
+          - service: "backend"
+            repository: ${{ vars.ECR_REPO_PRISM_BACKEND }}
+          - service: "server"
+            repository: ${{ vars.ECR_REPO_PRISM_NGINX }}
+          - service: "queue-worker"
+            repository: ${{ vars.ECR_REPO_QUEUE_WORKER }}
+          - service: "event-horizon"
+            repository: ${{ vars.ECR_REPO_EVENT_HORIZON }}
+          - service: "event-horizon-nginx"
+            repository: ${{ vars.ECR_REPO_EVENT_HORIZON_NGINX }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT }}:role/deployment-role
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and Push Docker Image for ${{ matrix.service }}
+        run: |
+          docker build -t ${{ matrix.repository }}:${{ env.IMAGE_TAG }} .
+          docker tag ${{ matrix.repository }}:${{ env.IMAGE_TAG }} ${{ steps.login-ecr.outputs.registry }}/${{ matrix.repository }}:${{ env.IMAGE_TAG }}
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ matrix.repository }}:${{ env.IMAGE_TAG }}
+
+  deploy-to-ecs:
+    needs: build-and-push-image
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [frontend, backend, server, queue-worker, event-horizon, event-horizon-nginx]
+
+    steps:
+      - name: Checkout Terraform Code
+        uses: actions/checkout@v2
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT }}:role/deployment-role
+          aws-region: us-east-1
+
+      - name: Export Image Tag for Terraform
+        run: echo "TF_VAR_ecr_image_tag=${{ env.IMAGE_TAG }}" >> $GITHUB_ENV
+
+      - name: Initialize Terraform and Deploy
+        run: |
+          cd ecs-fargate/${{ matrix.service }}
+          terraform init -reconfigure -backend-config=tfbackend-${{ env.ENVIRONMENT }}
+          terraform validate
+          terraform plan -var-file=vars/terraform-${{ env.ENVIRONMENT }}.tfvars
+          terraform apply -var-file=vars/terraform-${{ env.ENVIRONMENT }}.tfvars -auto-approve

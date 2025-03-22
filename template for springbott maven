@@ -1,8 +1,57 @@
-sudo dnf remove mysql80-community-release -y
-sudo rm -f /etc/yum.repos.d/mysql*.repo
+name: "Terraform Provisioner"
 
-sudo dnf install https://dev.mysql.com/get/mysql80-community-release-fc$(rpm -E %fedora)-1.noarch.rpm -y
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Select environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - prd
+      resource:
+        description: "Select resource to deploy"
+        required: true
+        type: choice
+        options:
+          - compute
+          - ecr
+          - ecs-fargate/ecs-cluster
+          - ecs-fargate/prism
+          - ecs-fargate/event-horizon
+          - ecs-fargate/redis
+          - ecs-fargate/queue-worker-1
+          - ecs-fargate/queue-worker-2
+          - iam
 
-sudo dnf update -y
+jobs:
+  tf_plan:
+    uses: ./.github/workflows/terraform-plan.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      environment: ${{ github.event.inputs.environment }}
+      tf_root_suffix: ${{ github.event.inputs.resource }}
+      wiz_enabled: false
+    secrets: inherit
 
-sudo dnf install mysql-community-client -y
+  tf_approval:
+    needs: tf_plan
+    name: Terraform Approval for ${{ github.event.inputs.resource }} in ${{ github.event.inputs.environment }}
+    runs-on: arc-rs-nonprod
+    environment: tf-approval
+    steps:
+      - name: Wait for manual approval
+        run: echo "Waiting for approval..."
+
+  tf_apply:
+    needs: tf_approval
+    uses: ./.github/workflows/terraform-apply.yml
+    permissions: write-all
+    with:
+      environment: ${{ github.event.inputs.environment }}
+      tf_root_suffix: ${{ github.event.inputs.resource }}
+    secrets: inherit

@@ -1,57 +1,9 @@
-name: "Terraform Provisioner"
-
-on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "Select environment"
-        required: true
-        type: choice
-        options:
-          - dev
-          - qa
-          - prd
-      resource:
-        description: "Select resource to deploy"
-        required: true
-        type: choice
-        options:
-          - compute
-          - ecr
-          - ecs-fargate/ecs-cluster
-          - ecs-fargate/prism
-          - ecs-fargate/event-horizon
-          - ecs-fargate/redis
-          - ecs-fargate/queue-worker-1
-          - ecs-fargate/queue-worker-2
-          - iam
-
-jobs:
-  tf_plan:
-    uses: ./.github/workflows/terraform-plan.yml
-    permissions:
-      id-token: write
-      contents: read
-    with:
-      environment: ${{ github.event.inputs.environment }}
-      tf_root_suffix: ${{ github.event.inputs.resource }}
-      wiz_enabled: false
-    secrets: inherit
-
-  tf_approval:
-    needs: tf_plan
-    name: Terraform Approval for ${{ github.event.inputs.resource }} in ${{ github.event.inputs.environment }}
-    runs-on: arc-rs-nonprod
-    environment: tf-approval
-    steps:
-      - name: Wait for manual approval
-        run: echo "Waiting for approval..."
-
-  tf_apply:
-    needs: tf_approval
-    uses: ./.github/workflows/terraform-apply.yml
-    permissions: write-all
-    with:
-      environment: ${{ github.event.inputs.environment }}
-      tf_root_suffix: ${{ github.event.inputs.resource }}
-    secrets: inherit
+- name: Export secret environment variables
+  if: ${{ inputs.tf_root_suffix == 'secrets' }}
+  run: |
+    echo "TF_VAR_APP_KEY=${{ secrets.APP_KEY }}" >> $GITHUB_ENV
+    echo "TF_VAR_MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> $GITHUB_ENV
+    echo "TF_VAR_MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> $GITHUB_ENV
+    echo "TF_VAR_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> $GITHUB_ENV
+    echo "TF_VAR_GATEWAY_APPLICATION_USERNAME=${{ secrets.GATEWAY_APPLICATION_USERNAME }}" >> $GITHUB_ENV
+    echo "TF_VAR_GATEWAY_APPLICATION_PASSWORD=${{ secrets.GATEWAY_APPLICATION_PASSWORD }}" >> $GITHUB_ENV

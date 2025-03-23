@@ -1,9 +1,1 @@
-- name: Export secret environment variables
-  if: ${{ inputs.tf_root_suffix == 'secrets' }}
-  run: |
-    echo "TF_VAR_APP_KEY=${{ secrets.APP_KEY }}" >> $GITHUB_ENV
-    echo "TF_VAR_MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}" >> $GITHUB_ENV
-    echo "TF_VAR_MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}" >> $GITHUB_ENV
-    echo "TF_VAR_REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> $GITHUB_ENV
-    echo "TF_VAR_GATEWAY_APPLICATION_USERNAME=${{ secrets.GATEWAY_APPLICATION_USERNAME }}" >> $GITHUB_ENV
-    echo "TF_VAR_GATEWAY_APPLICATION_PASSWORD=${{ secrets.GATEWAY_APPLICATION_PASSWORD }}" >> $GITHUB_ENV
+aws s3 cp s3://dgx-prism-use1-dev-tfstate-s3/vpc/ s3://dgx-prism-use1-dev-tfstate-s3/network/ --recursive

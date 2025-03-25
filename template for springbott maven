@@ -1,1 +1,1 @@
-aws s3 cp s3://dgx-prism-use1-dev-tfstate-s3/vpc/ s3://dgx-prism-use1-dev-tfstate-s3/network/ --recursive
+git::https://github.com/QDXEnterpriseOrg/dso-terraform-aws-iam-role-splunk-datamanager.git//?ref=main
